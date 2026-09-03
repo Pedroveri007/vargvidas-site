@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Administrativo — VARG</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+  <div class="nav-wrap">
+    <a href="index.html" class="brand">
+      <div class="brand-mark">V</div>
+      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+    </a>
+    <nav class="main-nav">
+      <a href="index.html">Início</a>
+      <a href="pessoas.html">Pessoas Desaparecidas</a>
+      <a href="registrar.html">Registrar Desaparecimento</a>
+      <a href="avistamento.html">Informar Avistamento</a>
+      <a href="noticias.html">Notícias</a>
+      <a href="estatisticas.html">Estatísticas</a>
+      <a href="parceiros.html">Parceiros</a>
+      <a href="sobre.html">Sobre</a>
+      <a href="contato.html">Contato</a>
+    </nav>
+    <div class="nav-actions"><button class="hamburger" onclick="toggleMenu()">☰</button></div>
+  </div>
+</header>
+
+<section>
+  <div class="container">
+    <span class="eyebrow">Área restrita · equipe VARG</span>
+    <h1>Painel Administrativo</h1>
+    <div class="tabs" style="max-width:520px">
+      <button class="active" onclick="showAdminTab('casos')" id="tab-casos">Casos</button>
+      <button onclick="showAdminTab('avistamentos')" id="tab-avistamentos">Avistamentos</button>
+      <button onclick="showAdminTab('mensagens')" id="tab-mensagens">Mensagens</button>
+    </div>
+    <div id="admin-content"></div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="container footer-bottom"><span>© 2026 VARG — Protótipo de demonstração.</span></div>
+</footer>
+
+<script src="assets/app.js"></script>
+<script>
+  function showAdminTab(t){
+    ["casos","avistamentos","mensagens"].forEach(x=>document.getElementById("tab-"+x).classList.toggle("active", x===t));
+    const db = DB.all();
+    const el = document.getElementById("admin-content");
+    if (t === "casos") {
+      el.innerHTML = `<table><thead><tr><th>Protocolo</th><th>Nome</th><th>Cidade/UF</th><th>Status</th><th>Urgente</th><th>Ações</th></tr></thead><tbody>
+        ${db.cases.map(c=>`<tr>
+          <td>${c.protocol}</td><td>${c.full_name}</td><td>${c.city}/${c.state}</td>
+          <td><span class="tag ${c.status==='found'?'encontrado':'ativo'}">${statusLabel(c.status)}</span></td>
+          <td>${c.is_urgent?"Sim":"Não"}</td>
+          <td><a class="btn btn-outline-azul" style="padding:6px 12px;font-size:.78rem" href="caso.html?id=${c.id}">Ver</a></td>
+        </tr>`).join("")}
+      </tbody></table>`;
+    } else if (t === "avistamentos") {
+      el.innerHTML = db.sightings.length ? `<table><thead><tr><th>Data</th><th>Cidade/UF</th><th>Descrição</th><th>Status</th></tr></thead><tbody>
+        ${db.sightings.map(s=>`<tr><td>${fmtDate(s.created_at)}</td><td>${s.city||"—"}/${s.state||"—"}</td><td>${s.description}</td><td><span class="tag ativo">${s.status}</span></td></tr>`).join("")}
+      </tbody></table>` : `<div class="empty-state">Nenhum avistamento recebido ainda.</div>`;
+    } else {
+      el.innerHTML = db.contact_messages.length ? `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Assunto</th><th>Mensagem</th></tr></thead><tbody>
+        ${db.contact_messages.map(m=>`<tr><td>${m.name}</td><td>${m.email}</td><td>${m.subject||"—"}</td><td>${m.message}</td></tr>`).join("")}
+      </tbody></table>` : `<div class="empty-state">Nenhuma mensagem recebida ainda.</div>`;
+    }
+  }
+  showAdminTab("casos");
+</script>
+</body>
+</html>

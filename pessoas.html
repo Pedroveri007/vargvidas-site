@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pessoas Desaparecidas — VARG</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+  <div class="nav-wrap">
+    <a href="index.html" class="brand">
+      <div class="brand-mark">V</div>
+      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+    </a>
+    <nav class="main-nav">
+      <a href="index.html">Início</a>
+      <a href="pessoas.html">Pessoas Desaparecidas</a>
+      <a href="registrar.html">Registrar Desaparecimento</a>
+      <a href="avistamento.html">Informar Avistamento</a>
+      <a href="noticias.html">Notícias</a>
+      <a href="estatisticas.html">Estatísticas</a>
+      <a href="parceiros.html">Parceiros</a>
+      <a href="sobre.html">Sobre</a>
+      <a href="contato.html">Contato</a>
+    </nav>
+    <div class="nav-actions">
+      <a href="painel.html" class="btn btn-outline" style="padding:8px 14px;font-size:.8rem">Painel</a>
+      <button class="hamburger" onclick="toggleMenu()">☰</button>
+    </div>
+  </div>
+</header>
+
+<section style="padding-bottom:0">
+  <div class="container">
+    <span class="eyebrow">Base de casos</span>
+    <h1>Pessoas Desaparecidas</h1>
+    <p style="color:var(--cinza-texto);max-width:620px">Busque por nome, cidade, estado ou status. Todas as informações aqui são de casos públicos cadastrados na plataforma.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="filters-bar">
+      <div><label>Buscar por nome ou cidade</label><input id="f-q" placeholder="Ex: Marina, Belo Horizonte..."></div>
+      <div><label>Estado</label><select id="f-state"><option value="">Todos</option></select></div>
+      <div><label>Status</label>
+        <select id="f-status">
+          <option value="">Todos</option>
+          <option value="pending">Em triagem</option>
+          <option value="active">Busca ativa</option>
+          <option value="found">Encontrado(a)</option>
+        </select>
+      </div>
+      <div><label>Gênero</label>
+        <select id="f-gender"><option value="">Todos</option><option>Feminino</option><option>Masculino</option></select>
+      </div>
+      <button class="btn btn-secondary" onclick="renderList()">Filtrar</button>
+    </div>
+    <div id="result-count" style="margin-bottom:16px;color:var(--cinza-texto);font-size:.88rem"></div>
+    <div class="cases-grid" id="cases-list"></div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="container footer-grid">
+    <div>
+      <div class="brand" style="margin-bottom:14px">
+        <div class="brand-mark">V</div>
+        <div class="brand-text" style="color:#fff"><strong style="color:#fff">VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+      </div>
+      <p style="font-size:.85rem;max-width:320px">Plataforma nacional de cadastro, divulgação e localização de pessoas desaparecidas.</p>
+    </div>
+    <div><h4>Navegação</h4>
+      <a href="pessoas.html">Pessoas Desaparecidas</a>
+      <a href="registrar.html">Registrar Desaparecimento</a>
+      <a href="avistamento.html">Informar Avistamento</a>
+      <a href="noticias.html">Notícias</a>
+    </div>
+    <div><h4>Institucional</h4>
+      <a href="sobre.html">Sobre a VARG</a>
+      <a href="parceiros.html">Parceiros</a>
+      <a href="estatisticas.html">Estatísticas</a>
+      <a href="contato.html">Contato</a>
+    </div>
+    <div><h4>Emergência</h4>
+      <a href="tel:190">Polícia: 190</a>
+      <a href="tel:100">Disque Direitos Humanos: 100</a>
+      <a href="tel:181">Disque Denúncia: 181</a>
+    </div>
+  </div>
+  <div class="container footer-bottom">
+    <span>© 2026 VARG — Vidas em Alerta para Reencontro e Gestão. Protótipo de demonstração.</span>
+    <span>Feito para reunir famílias.</span>
+  </div>
+</footer>
+
+<script src="assets/app.js"></script>
+<script>
+  const estados = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+  document.getElementById("f-state").innerHTML += estados.map(e=>`<option>${e}</option>`).join("");
+
+  function renderList() {
+    const filters = {
+      q: document.getElementById("f-q").value.trim(),
+      state: document.getElementById("f-state").value,
+      status: document.getElementById("f-status").value,
+      gender: document.getElementById("f-gender").value
+    };
+    const list = DB.getCases(filters);
+    document.getElementById("result-count").textContent = `${list.length} caso(s) encontrado(s)`;
+    const wrap = document.getElementById("cases-list");
+    if (!list.length) {
+      wrap.innerHTML = `<div class="empty-state" style="grid-column:1/-1">Nenhum caso encontrado com esses filtros.</div>`;
+      return;
+    }
+    wrap.innerHTML = list.map(c => `
+      <a class="case-card" href="caso.html?id=${c.id}">
+        <div class="case-photo">
+          ${c.status==="found" ? `<span class="badge encontrado">Encontrado(a)</span>` : c.is_urgent ? `<span class="badge">Urgente</span>` : ""}
+          ${c.full_name.split(" ").map(n=>n[0]).slice(0,2).join("")}
+        </div>
+        <div class="case-info">
+          <h3>${c.full_name}</h3>
+          <div class="meta">${c.age} anos · ${c.city}/${c.state}</div>
+          <div class="meta">Desde ${fmtDate(c.disappearance_date)}</div>
+          <span class="tag ${c.status==='found'?'encontrado':'ativo'}" style="width:fit-content">${statusLabel(c.status)}</span>
+          <div class="protocol">${c.protocol}</div>
+        </div>
+      </a>
+    `).join("");
+  }
+  renderList();
+</script>
+</body>
+</html>

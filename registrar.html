@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registrar Desaparecimento — VARG</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+  <div class="nav-wrap">
+    <a href="index.html" class="brand">
+      <div class="brand-mark">V</div>
+      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+    </a>
+    <nav class="main-nav">
+      <a href="index.html">Início</a>
+      <a href="pessoas.html">Pessoas Desaparecidas</a>
+      <a href="registrar.html">Registrar Desaparecimento</a>
+      <a href="avistamento.html">Informar Avistamento</a>
+      <a href="noticias.html">Notícias</a>
+      <a href="estatisticas.html">Estatísticas</a>
+      <a href="parceiros.html">Parceiros</a>
+      <a href="sobre.html">Sobre</a>
+      <a href="contato.html">Contato</a>
+    </nav>
+    <div class="nav-actions">
+      <a href="painel.html" class="btn btn-outline" style="padding:8px 14px;font-size:.8rem">Painel</a>
+      <button class="hamburger" onclick="toggleMenu()">☰</button>
+    </div>
+  </div>
+</header>
+
+<section style="padding-bottom:0">
+  <div class="container">
+    <span class="eyebrow">Cadastro de caso</span>
+    <h1>Registrar Desaparecimento</h1>
+    <p style="color:var(--cinza-texto);max-width:640px">Preencha o máximo de informações possível. Antes de tudo, registre um Boletim de Ocorrência na delegacia mais próxima ou ligue 181.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <form class="form-card" id="form-registrar">
+      <div class="form-section-title">Dados da pessoa</div>
+      <div class="form-grid">
+        <div class="field full"><label>Nome completo *</label><input required name="full_name"></div>
+        <div class="field"><label>Apelido</label><input name="nickname"></div>
+        <div class="field"><label>Idade *</label><input required type="number" min="0" max="120" name="age"></div>
+        <div class="field"><label>Gênero *</label><select required name="gender"><option value="">Selecione</option><option>Feminino</option><option>Masculino</option><option>Outro</option></select></div>
+        <div class="field"><label>Altura (cm)</label><input type="number" name="height_cm"></div>
+        <div class="field"><label>Peso (kg)</label><input type="number" name="weight_kg"></div>
+        <div class="field"><label>Cor dos olhos</label><input name="eye_color"></div>
+        <div class="field"><label>Cor do cabelo</label><input name="hair_color"></div>
+        <div class="field"><label>Cor da pele</label><input name="skin_color"></div>
+        <div class="field full"><label>Marcas, cicatrizes ou tatuagens</label><textarea name="marks" rows="2"></textarea></div>
+        <div class="field full"><label>Roupas usadas no dia do desaparecimento</label><input name="clothing"></div>
+      </div>
+
+      <div class="form-section-title">Desaparecimento</div>
+      <div class="form-grid">
+        <div class="field"><label>Data do desaparecimento *</label><input required type="date" name="disappearance_date"></div>
+        <div class="field"><label>Cidade *</label><input required name="city"></div>
+        <div class="field"><label>Estado *</label>
+          <select required name="state"><option value="">UF</option></select>
+        </div>
+        <div class="field"><label>Local visto pela última vez</label><input name="last_seen_location"></div>
+        <div class="field full"><label>Circunstâncias do desaparecimento *</label><textarea required name="circumstances" rows="4"></textarea></div>
+        <div class="field full checkbox-row"><input type="checkbox" id="urgent" name="is_urgent"><label for="urgent" style="margin:0">Marcar como caso urgente (criança, idoso, pessoa com condição de saúde grave, indícios de crime)</label></div>
+      </div>
+
+      <div class="form-section-title">Contato da família</div>
+      <div class="form-grid">
+        <div class="field"><label>Nome do responsável *</label><input required name="family_contact_name"></div>
+        <div class="field"><label>Telefone *</label><input required name="family_contact_phone"></div>
+        <div class="field full"><label>E-mail</label><input type="email" name="family_contact_email"></div>
+        <div class="field full"><label>Número do Boletim de Ocorrência</label><input name="police_report" placeholder="Se já registrado"></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" type="submit" style="margin-top:12px">Registrar caso</button>
+      <p class="helper" style="text-align:center;margin-top:10px">O caso passa por triagem da equipe VARG antes de ser publicado.</p>
+    </form>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="container footer-bottom"><span>© 2026 VARG — Vidas em Alerta para Reencontro e Gestão. Protótipo de demonstração.</span></div>
+</footer>
+
+<script src="assets/app.js"></script>
+<script>
+  const estados = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+  document.querySelector('select[name="state"]').innerHTML += estados.map(e=>`<option>${e}</option>`).join("");
+
+  document.getElementById("form-registrar").addEventListener("submit", function(e){
+    e.preventDefault();
+    const fd = new FormData(this);
+    const data = Object.fromEntries(fd.entries());
+    data.is_urgent = !!fd.get("is_urgent");
+    data.age = parseInt(data.age) || null;
+    data.height_cm = parseInt(data.height_cm) || null;
+    data.weight_kg = parseInt(data.weight_kg) || null;
+    data.is_public = true;
+    data.status = "pending";
+    const rec = DB.addCase(data);
+    toast("Caso registrado com sucesso! Protocolo " + rec.protocol);
+    setTimeout(()=> location.href = "caso.html?id=" + rec.id, 1200);
+  });
+</script>
+</body>
+</html>

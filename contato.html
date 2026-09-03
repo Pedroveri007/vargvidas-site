@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contato — VARG</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+  <div class="nav-wrap">
+    <a href="index.html" class="brand">
+      <div class="brand-mark">V</div>
+      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+    </a>
+    <nav class="main-nav">
+      <a href="index.html">Início</a>
+      <a href="pessoas.html">Pessoas Desaparecidas</a>
+      <a href="registrar.html">Registrar Desaparecimento</a>
+      <a href="avistamento.html">Informar Avistamento</a>
+      <a href="noticias.html">Notícias</a>
+      <a href="estatisticas.html">Estatísticas</a>
+      <a href="parceiros.html">Parceiros</a>
+      <a href="sobre.html">Sobre</a>
+      <a href="contato.html">Contato</a>
+    </nav>
+    <div class="nav-actions"><button class="hamburger" onclick="toggleMenu()">☰</button></div>
+  </div>
+</header>
+
+<section>
+  <div class="container two-col">
+    <form class="form-card" id="form-contato">
+      <span class="eyebrow">Fale com a gente</span>
+      <h1>Contato</h1>
+      <div class="field"><label>Nome *</label><input required name="name"></div>
+      <div class="field"><label>E-mail *</label><input required type="email" name="email"></div>
+      <div class="field"><label>Telefone</label><input name="phone"></div>
+      <div class="field"><label>Assunto</label><input name="subject"></div>
+      <div class="field"><label>Mensagem *</label><textarea required rows="4" name="message"></textarea></div>
+      <button class="btn btn-primary btn-block" type="submit">Enviar mensagem</button>
+    </form>
+    <div class="info-box">
+      <h4>Canais oficiais</h4>
+      <dl>
+        <dt>Polícia Militar</dt><dd>190</dd>
+        <dt>Disque Direitos Humanos</dt><dd>100</dd>
+        <dt>Disque Denúncia</dt><dd>181</dd>
+        <dt>E-mail institucional</dt><dd>contato@varg.org.br</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<footer class="site"><div class="container footer-bottom"><span>© 2026 VARG — Protótipo de demonstração.</span></div></footer>
+
+<script src="assets/app.js"></script>
+<script>
+  document.getElementById("form-contato").addEventListener("submit", function(e){
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(this).entries());
+    DB.addContactMessage(data);
+    toast("Mensagem enviada. Retornaremos em breve.");
+    this.reset();
+  });
+</script>
+</body>
+</html>

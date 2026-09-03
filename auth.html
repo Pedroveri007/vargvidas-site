@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entrar — VARG</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+  <div class="nav-wrap">
+    <a href="index.html" class="brand">
+      <div class="brand-mark">V</div>
+      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+    </a>
+    <nav class="main-nav">
+      <a href="index.html">Início</a>
+      <a href="pessoas.html">Pessoas Desaparecidas</a>
+      <a href="registrar.html">Registrar Desaparecimento</a>
+      <a href="avistamento.html">Informar Avistamento</a>
+      <a href="noticias.html">Notícias</a>
+      <a href="estatisticas.html">Estatísticas</a>
+      <a href="parceiros.html">Parceiros</a>
+      <a href="sobre.html">Sobre</a>
+      <a href="contato.html">Contato</a>
+    </nav>
+    <div class="nav-actions"><button class="hamburger" onclick="toggleMenu()">☰</button></div>
+  </div>
+</header>
+
+<section>
+  <div class="container login-wrap">
+    <div class="form-card">
+      <div class="tabs">
+        <button class="active" id="tab-login" onclick="showTab('login')">Entrar</button>
+        <button id="tab-register" onclick="showTab('register')">Criar conta</button>
+      </div>
+
+      <form id="form-login">
+        <div class="field"><label>E-mail</label><input required type="email" id="login-email"></div>
+        <div class="field"><label>Senha</label><input required type="password"></div>
+        <button class="btn btn-primary btn-block" type="submit">Entrar</button>
+      </form>
+
+      <form id="form-register" style="display:none">
+        <div class="field"><label>Nome completo</label><input required></div>
+        <div class="field"><label>E-mail</label><input required type="email" id="reg-email"></div>
+        <div class="field"><label>Telefone</label><input></div>
+        <div class="field"><label>Senha</label><input required type="password"></div>
+        <button class="btn btn-primary btn-block" type="submit">Criar conta</button>
+      </form>
+      <p class="helper" style="text-align:center;margin-top:14px">Protótipo — o login é simulado para fins de demonstração.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="container footer-bottom"><span>© 2026 VARG — Protótipo de demonstração.</span></div>
+</footer>
+
+<script src="assets/app.js"></script>
+<script>
+  function showTab(t){
+    document.getElementById("tab-login").classList.toggle("active", t==="login");
+    document.getElementById("tab-register").classList.toggle("active", t==="register");
+    document.getElementById("form-login").style.display = t==="login" ? "block":"none";
+    document.getElementById("form-register").style.display = t==="register" ? "block":"none";
+  }
+  document.getElementById("form-login").addEventListener("submit", function(e){
+    e.preventDefault();
+    DB.login(document.getElementById("login-email").value);
+    toast("Login realizado.");
+    setTimeout(()=> location.href="painel.html", 800);
+  });
+  document.getElementById("form-register").addEventListener("submit", function(e){
+    e.preventDefault();
+    DB.login(document.getElementById("reg-email").value);
+    toast("Conta criada com sucesso.");
+    setTimeout(()=> location.href="painel.html", 800);
+  });
+</script>
+</body>
+</html>

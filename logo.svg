@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Logo VARG</title>
+  <desc id="desc">Símbolo de proteção com uma pessoa e um coração</desc>
+  <path fill="#14396f" d="M82 22c-38 18-58 54-56 91 2 39 25 65 57 82-17-25-25-48-25-72 0-39 18-70 49-88-8-7-16-11-25-13z"/>
+  <path fill="#d7192f" d="M174 25c39 19 57 54 56 91-1 38-23 65-55 82 16-25 24-48 24-72 0-39-18-70-49-89 7-6 15-10 24-12z"/>
+  <circle cx="128" cy="82" r="25" fill="#14396f"/>
+  <path fill="#14396f" d="M128 111c-30 0-51 20-51 48 0 22 17 45 51 75 34-30 51-53 51-75 0-28-21-48-51-48z"/>
+  <path fill="#e21e35" d="M128 166c-16-14-29-22-29-35 0-9 7-16 16-16 6 0 11 3 13 8 3-5 8-8 14-8 9 0 16 7 16 16 0 13-13 21-30 35z"/>
+</svg>

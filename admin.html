@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel Administrativo — VARG</title>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <header class="site">
   <div class="nav-wrap">
     <a href="index.html" class="brand">
-      <div class="brand-mark">V</div>
+      <img class="brand-logo" src="logo.svg" alt="Logo VARG">
       <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
     </a>
     <nav class="main-nav">
@@ -18,9 +18,7 @@
       <a href="pessoas.html">Pessoas Desaparecidas</a>
       <a href="registrar.html">Registrar Desaparecimento</a>
       <a href="avistamento.html">Informar Avistamento</a>
-      <a href="noticias.html">Notícias</a>
       <a href="estatisticas.html">Estatísticas</a>
-      <a href="parceiros.html">Parceiros</a>
       <a href="sobre.html">Sobre</a>
       <a href="contato.html">Contato</a>
     </nav>
@@ -45,7 +43,7 @@
   <div class="container footer-bottom"><span>© 2026 VARG — Protótipo de demonstração.</span></div>
 </footer>
 
-<script src="assets/app.js"></script>
+<script src="app.js"></script>
 <script>
   function showAdminTab(t){
     ["casos","avistamentos","mensagens"].forEach(x=>document.getElementById("tab-"+x).classList.toggle("active", x===t));

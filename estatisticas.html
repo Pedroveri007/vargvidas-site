@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Estatísticas — VARG</title>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <header class="site">
   <div class="nav-wrap">
     <a href="index.html" class="brand">
-      <div class="brand-mark">V</div>
+      <img class="brand-logo" src="logo.svg" alt="Logo VARG">
       <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
     </a>
     <nav class="main-nav">
@@ -18,9 +18,7 @@
       <a href="pessoas.html">Pessoas Desaparecidas</a>
       <a href="registrar.html">Registrar Desaparecimento</a>
       <a href="avistamento.html">Informar Avistamento</a>
-      <a href="noticias.html">Notícias</a>
       <a href="estatisticas.html">Estatísticas</a>
-      <a href="parceiros.html">Parceiros</a>
       <a href="sobre.html">Sobre</a>
       <a href="contato.html">Contato</a>
     </nav>
@@ -47,14 +45,14 @@
 
 <footer class="site"><div class="container footer-bottom"><span>© 2026 VARG — Protótipo de demonstração.</span></div></footer>
 
-<script src="assets/app.js"></script>
+<script src="app.js"></script>
 <script>
-  const st = DB.stats();
+  const st = { porEstado: {}, porStatus: {} };
   document.getElementById("stats-grid").innerHTML = `
-    <div class="stat-card"><div class="num">${st.total}</div><div class="lbl">Casos cadastrados</div></div>
-    <div class="stat-card"><div class="num">${st.ativos}</div><div class="lbl">Buscas ativas</div></div>
-    <div class="stat-card"><div class="num">${st.encontrados}</div><div class="lbl">Pessoas reencontradas</div></div>
-    <div class="stat-card"><div class="num">${st.total ? Math.round(st.encontrados/st.total*100) : 0}%</div><div class="lbl">Taxa de reencontro</div></div>
+    <div class="stat-card"><div class="num">0</div><div class="lbl">Buscas ativas</div></div>
+    <div class="stat-card"><div class="num">0</div><div class="lbl">Pessoas reencontradas</div></div>
+    <div class="stat-card"><div class="num">0</div><div class="lbl">Casos urgentes</div></div>
+    <div class="stat-card"><div class="num">0%</div><div class="lbl">Taxa de reencontro</div></div>
   `;
   function barRow(label, value, max) {
     const pct = max ? Math.round(value/max*100) : 0;
@@ -63,10 +61,8 @@
       <div style="background:var(--cinza-claro);border-radius:6px;height:8px;overflow:hidden"><div style="background:var(--azul);width:${pct}%;height:100%"></div></div>
     </div>`;
   }
-  const maxEstado = Math.max(...Object.values(st.porEstado), 1);
-  document.getElementById("por-estado").innerHTML = Object.entries(st.porEstado).map(([k,v])=>barRow(k,v,maxEstado)).join("");
-  const maxStatus = Math.max(...Object.values(st.porStatus), 1);
-  document.getElementById("por-status").innerHTML = Object.entries(st.porStatus).map(([k,v])=>barRow(statusLabel(k),v,maxStatus)).join("");
+  document.getElementById("por-estado").innerHTML = '<div class="empty-state" style="padding:20px 0">0</div>';
+  document.getElementById("por-status").innerHTML = '<div class="empty-state" style="padding:20px 0">0</div>';
 </script>
 </body>
 </html>

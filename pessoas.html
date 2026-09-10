@@ -97,18 +97,16 @@
   document.getElementById("f-state").innerHTML += estados.map(e=>`<option>${e}</option>`).join("");
 
   function renderList() {
-    const list = [];
-    document.getElementById("result-count").textContent = "0 caso(s) encontrado(s)";
-    const wrap = document.getElementById("cases-list");
-    if (!list.length) {
-      wrap.innerHTML = `<div class="empty-state" style="grid-column:1/-1">Nenhuma pessoa cadastrada no momento. Novos registros aparecerão aqui após a conexão com o banco de dados.</div>`;
-      return;
-    }
-    wrap.innerHTML = list.map(c => `
+    const filters = { q: document.getElementById("f-q").value, state: document.getElementById("f-state").value, status: document.getElementById("f-status").value, gender: document.getElementById("f-gender").value };
+    DB.getCases(filters).then(list => {
+      document.getElementById("result-count").textContent = list.length + " caso(s) encontrado(s)";
+      const wrap = document.getElementById("cases-list");
+      if (!list.length) { wrap.innerHTML = `<div class="empty-state" style="grid-column:1/-1">Nenhuma pessoa cadastrada no momento.</div>`; return; }
+      wrap.innerHTML = list.map(c => `
       <a class="case-card" href="caso.html?id=${c.id}">
         <div class="case-photo">
           ${c.status==="found" ? `<span class="badge encontrado">Encontrado(a)</span>` : c.is_urgent ? `<span class="badge">Urgente</span>` : ""}
-          ${c.full_name.split(" ").map(n=>n[0]).slice(0,2).join("")}
+          ${c.photo_url ? `<img src="${c.photo_url}" alt="Foto de ${c.full_name}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : c.full_name.split(" ").map(n=>n[0]).slice(0,2).join("")}
         </div>
         <div class="case-info">
           <h3>${c.full_name}</h3>
@@ -118,7 +116,8 @@
           <div class="protocol">${c.protocol}</div>
         </div>
       </a>
-    `).join("");
+      `).join("");
+    }).catch(error => toast(error.message));
   }
   renderList();
 </script>

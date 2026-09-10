@@ -36,18 +36,18 @@
 
       <form id="form-login">
         <div class="field"><label>E-mail</label><input required type="email" id="login-email"></div>
-        <div class="field"><label>Senha</label><input required type="password"></div>
+        <div class="field"><label>Senha</label><input required type="password" id="login-password"></div>
         <button class="btn btn-primary btn-block" type="submit">Entrar</button>
       </form>
 
       <form id="form-register" style="display:none">
-        <div class="field"><label>Nome completo</label><input required></div>
+        <div class="field"><label>Nome completo</label><input required id="reg-name"></div>
         <div class="field"><label>E-mail</label><input required type="email" id="reg-email"></div>
-        <div class="field"><label>Telefone</label><input></div>
-        <div class="field"><label>Senha</label><input required type="password"></div>
+        <div class="field"><label>Telefone</label><input id="reg-phone"></div>
+        <div class="field"><label>Senha</label><input required type="password" id="reg-password"></div>
         <button class="btn btn-primary btn-block" type="submit">Criar conta</button>
       </form>
-      <p class="helper" style="text-align:center;margin-top:14px">Protótipo — o login é simulado para fins de demonstração.</p>
+      <p class="helper" style="text-align:center;margin-top:14px">Sua conta é protegida por senha criptografada e sessão autenticada.</p>
     </div>
   </div>
 </section>
@@ -66,15 +66,19 @@
   }
   document.getElementById("form-login").addEventListener("submit", function(e){
     e.preventDefault();
-    DB.login(document.getElementById("login-email").value);
-    toast("Login realizado.");
-    setTimeout(()=> location.href="painel.html", 800);
+    DB.login(document.getElementById("login-email").value, document.getElementById("login-password").value)
+      .then(()=> { toast("Login realizado."); setTimeout(()=> location.href="painel.html", 800); })
+      .catch(error => toast(error.message));
   });
   document.getElementById("form-register").addEventListener("submit", function(e){
     e.preventDefault();
-    DB.login(document.getElementById("reg-email").value);
-    toast("Conta criada com sucesso.");
-    setTimeout(()=> location.href="painel.html", 800);
+    DB.register({
+      nome: document.getElementById("reg-name").value,
+      email: document.getElementById("reg-email").value,
+      telefone: document.getElementById("reg-phone").value,
+      senha: document.getElementById("reg-password").value
+    }).then(()=> { toast("Conta criada com sucesso."); setTimeout(()=> location.href="painel.html", 800); })
+      .catch(error => toast(error.message));
   });
 </script>
 </body>

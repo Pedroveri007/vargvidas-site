@@ -47,12 +47,11 @@
 
 <script src="app.js"></script>
 <script>
-  const st = { porEstado: {}, porStatus: {} };
-  document.getElementById("stats-grid").innerHTML = `
-    <div class="stat-card"><div class="num">0</div><div class="lbl">Buscas ativas</div></div>
-    <div class="stat-card"><div class="num">0</div><div class="lbl">Pessoas reencontradas</div></div>
-    <div class="stat-card"><div class="num">0</div><div class="lbl">Casos urgentes</div></div>
-    <div class="stat-card"><div class="num">0%</div><div class="lbl">Taxa de reencontro</div></div>
+  DB.stats().then(st => { document.getElementById("stats-grid").innerHTML = `
+    <div class="stat-card"><div class="num">${st.ativos}</div><div class="lbl">Buscas ativas</div></div>
+    <div class="stat-card"><div class="num">${st.encontrados}</div><div class="lbl">Pessoas reencontradas</div></div>
+    <div class="stat-card"><div class="num">${st.urgentes}</div><div class="lbl">Casos urgentes</div></div>
+    <div class="stat-card"><div class="num">${st.total ? Math.round(st.encontrados / st.total * 100) : 0}%</div><div class="lbl">Taxa de reencontro</div></div>
   `;
   function barRow(label, value, max) {
     const pct = max ? Math.round(value/max*100) : 0;
@@ -61,8 +60,10 @@
       <div style="background:var(--cinza-claro);border-radius:6px;height:8px;overflow:hidden"><div style="background:var(--azul);width:${pct}%;height:100%"></div></div>
     </div>`;
   }
-  document.getElementById("por-estado").innerHTML = '<div class="empty-state" style="padding:20px 0">0</div>';
-  document.getElementById("por-status").innerHTML = '<div class="empty-state" style="padding:20px 0">0</div>';
+  const states = Object.entries(st.porEstado || {}), statuses = Object.entries(st.porStatus || {});
+  document.getElementById("por-estado").innerHTML = states.length ? states.map(x => barRow(x[0], x[1], Math.max(...states.map(y => y[1])))).join("") : '<div class="empty-state" style="padding:20px 0">Nenhum dado</div>';
+  document.getElementById("por-status").innerHTML = statuses.length ? statuses.map(x => barRow(x[0], x[1], Math.max(...statuses.map(y => y[1])))).join("") : '<div class="empty-state" style="padding:20px 0">Nenhum dado</div>';
+  }).catch(error => toast(error.message));
 </script>
 </body>
 </html>

@@ -41,8 +41,11 @@
   if (!session) {
     wrap.innerHTML = `<div class="empty-state"><h2>Você precisa entrar</h2><p>Acesse sua conta para ver os casos que você cadastrou.</p><a class="btn btn-secondary" href="auth.html">Entrar / Criar conta</a></div>`;
   } else {
-    const cases = [];
-    wrap.innerHTML = `
+    DB.getMyCases().then(cases => {
+      const active = cases.filter(c => c.status === "active").length;
+      const found = cases.filter(c => c.status === "found").length;
+      const rows = cases.length ? cases.map(c => `<tr><td>${c.full_name}</td><td>${c.protocol}</td><td><span class="tag ${c.status === 'found' ? 'encontrado' : 'ativo'}">${statusLabel(c.status)}</span></td><td>${fmtDate(c.created_at)}</td><td>${c.status === 'active' ? `<button class="btn btn-outline-azul" onclick="requestFound('${c.id}')">Informar encontrado</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="5" class="empty-state">Nenhum caso cadastrado.</td></tr>';
+      wrap.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div><span class="eyebrow">Painel da família</span><h1 style="margin:0">Olá, ${session.email}</h1></div>
         <div style="display:flex;gap:10px">
@@ -51,16 +54,25 @@
         </div>
       </div>
       <div class="stats-grid" style="margin:28px 0">
-        <div class="stat-card"><div class="num">0</div><div class="lbl">Casos vinculados</div></div>
-        <div class="stat-card"><div class="num">0</div><div class="lbl">Em andamento</div></div>
-        <div class="stat-card"><div class="num">0</div><div class="lbl">Reencontrados</div></div>
+        <div class="stat-card"><div class="num">${cases.length}</div><div class="lbl">Casos vinculados</div></div>
+        <div class="stat-card"><div class="num">${active}</div><div class="lbl">Em andamento</div></div>
+        <div class="stat-card"><div class="num">${found}</div><div class="lbl">Reencontrados</div></div>
         <div class="stat-card"><div class="num">0</div><div class="lbl">Visualizações totais</div></div>
       </div>
+      <div class="info-box" id="notifications-box" style="margin-bottom:24px"><h4>Notificações</h4><p>Carregando...</p></div>
       <table>
         <thead><tr><th>Nome</th><th>Protocolo</th><th>Status</th><th>Cadastrado em</th><th></th></tr></thead>
-        <tbody><tr><td colspan="5" class="empty-state">Nenhum caso disponível. Os dados aparecerão aqui após a conexão com o banco de dados.</td></tr></tbody>
+        <tbody>${rows}</tbody>
       </table>
     `;
+      DB.getNotifications().then(notifications => {
+        document.getElementById('notifications-box').innerHTML = `<h4>Notificações</h4>${notifications.length ? `<ul>${notifications.map(notification => `<li>${notification.mensagem}</li>`).join('')}</ul>` : '<p>Nenhuma notificação.</p>'}`;
+      }).catch(() => {});
+    }).catch(error => { wrap.innerHTML = `<div class="empty-state">${error.message}</div>`; });
+  }
+  async function requestFound(id) {
+    if (!confirm('Solicitar análise de reencontro para este caso?')) return;
+    try { await DB.requestFound(id); toast('Solicitação enviada.'); } catch (error) { toast(error.message); }
   }
 </script>
 </body>

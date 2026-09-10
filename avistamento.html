@@ -81,12 +81,11 @@
 
   const caseId = new URLSearchParams(location.search).get("case_id");
   if (caseId) {
-    const c = DB.getCaseById(caseId);
-    if (c) {
+    DB.getCaseById(caseId).then(c => {
       document.getElementById("case-field").style.display = "block";
       document.getElementById("case-label").value = c.full_name + " — " + c.protocol;
       document.getElementById("case_id").value = c.id;
-    }
+    }).catch(() => {});
   }
 
   document.getElementById("anon").addEventListener("change", function(){
@@ -99,9 +98,10 @@
     const fd = new FormData(this);
     const data = Object.fromEntries(fd.entries());
     data.is_anonymous = !!fd.get("is_anonymous");
-    DB.addSighting(data);
-    toast("Obrigado! Sua informação foi enviada para análise da equipe VARG.");
-    setTimeout(()=> location.href = caseId ? ("caso.html?id="+caseId) : "index.html", 1400);
+    DB.addSighting(data).then(() => {
+      toast("Obrigado! Sua informação foi enviada para análise da equipe VARG.");
+      setTimeout(()=> location.href = caseId ? ("caso.html?id="+caseId) : "index.html", 1400);
+    }).catch(error => toast(error.message));
   });
 </script>
 </body>

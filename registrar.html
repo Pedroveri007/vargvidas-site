@@ -44,7 +44,7 @@
       <div class="form-grid">
         <div class="field full"><label>Nome completo *</label><input required name="full_name"></div>
         <div class="field"><label>Apelido</label><input name="nickname"></div>
-        <div class="field"><label>Idade *</label><input required type="number" min="0" max="120" name="age"></div>
+        <div class="field"><label>Data de nascimento</label><input type="date" name="birth_date"></div>
         <div class="field"><label>Gênero *</label><select required name="gender"><option value="">Selecione</option><option>Feminino</option><option>Masculino</option><option>Outro</option></select></div>
         <div class="field"><label>Altura (cm)</label><input type="number" name="height_cm"></div>
         <div class="field"><label>Peso (kg)</label><input type="number" name="weight_kg"></div>
@@ -58,7 +58,7 @@
       <div class="form-section-title">Desaparecimento</div>
       <div class="form-grid">
         <div class="field"><label>Data do desaparecimento *</label><input required type="date" name="disappearance_date"></div>
-        <div class="field"><label>Cidade *</label><input required name="city"></div>
+        <div class="field"><label>Cidade *</label><select required name="city"><option value="">Selecione o estado primeiro</option></select></div>
         <div class="field"><label>Estado *</label>
           <select required name="state"><option value="">UF</option></select>
         </div>
@@ -73,6 +73,7 @@
         <div class="field"><label>Telefone *</label><input required name="family_contact_phone"></div>
         <div class="field full"><label>E-mail</label><input type="email" name="family_contact_email"></div>
         <div class="field full"><label>Número do Boletim de Ocorrência</label><input name="police_report" placeholder="Se já registrado"></div>
+        <div class="field full"><label>Foto da pessoa</label><input id="case-photo" type="file" accept="image/jpeg,image/png,image/webp"><div id="photo-preview" class="helper"></div></div>
       </div>
 
       <button class="btn btn-primary btn-block" type="submit" style="margin-top:12px">Registrar caso</button>
@@ -87,22 +88,48 @@
 
 <script src="app.js"></script>
 <script>
-  const estados = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
-  document.querySelector('select[name="state"]').innerHTML += estados.map(e=>`<option>${e}</option>`).join("");
+  const stateField = document.querySelector('select[name="state"]');
+  const cityField = document.querySelector('select[name="city"]');
+  const photoField = document.getElementById('case-photo');
+  const photoPreview = document.getElementById('photo-preview');
+  let photoFile = null;
+
+  DB.getStates().then(states => {
+    stateField.innerHTML += states.map(state => `<option value="${state.nome}">${state.nome}</option>`).join('');
+  }).catch(error => toast(error.message));
+
+  stateField.addEventListener('change', () => {
+    cityField.innerHTML = '<option value="">Carregando cidades...</option>';
+    DB.getCities(stateField.value).then(cities => {
+      cityField.innerHTML = '<option value="">Selecione</option>' + cities.map(city => `<option value="${city.nome}">${city.nome}</option>`).join('');
+    }).catch(error => { cityField.innerHTML = '<option value="">Não foi possível carregar</option>'; toast(error.message); });
+  });
+
+  photoField.addEventListener('change', () => {
+    const file = photoField.files[0];
+    if (!file) { photoFile = null; photoPreview.textContent = ''; return; }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      photoField.value = '';
+      photoFile = null;
+      photoPreview.textContent = 'Escolha JPG, PNG ou WEBP de até 5 MB.';
+      return;
+    }
+    photoFile = file;
+    photoPreview.textContent = `Foto selecionada: ${file.name}`;
+  });
 
   document.getElementById("form-registrar").addEventListener("submit", function(e){
     e.preventDefault();
     const fd = new FormData(this);
     const data = Object.fromEntries(fd.entries());
     data.is_urgent = !!fd.get("is_urgent");
-    data.age = parseInt(data.age) || null;
     data.height_cm = parseInt(data.height_cm) || null;
     data.weight_kg = parseInt(data.weight_kg) || null;
-    data.is_public = true;
-    data.status = "pending";
-    const rec = DB.addCase(data);
-    toast("Caso registrado com sucesso! Protocolo " + rec.protocol);
-    setTimeout(()=> location.href = "caso.html?id=" + rec.id, 1200);
+    const submit = photoFile ? DB.uploadCasePhoto(photoFile).then(result => { data.foto_url = result.url; }) : Promise.resolve();
+    submit.then(() => DB.addCase(data)).then(rec => {
+      toast("Caso registrado com sucesso! Protocolo " + rec.protocol);
+      setTimeout(()=> location.href = "caso.html?id=" + rec.id, 1200);
+    }).catch(error => toast(error.message));
   });
 </script>
 </body>

@@ -57,9 +57,10 @@
   document.getElementById("form-contato").addEventListener("submit", function(e){
     e.preventDefault();
     const data = Object.fromEntries(new FormData(this).entries());
-    DB.addContactMessage(data);
-    toast("Mensagem enviada. Retornaremos em breve.");
-    this.reset();
+    DB.addContactMessage(data).then(() => {
+      toast("Mensagem enviada. Retornaremos em breve.");
+      this.reset();
+    }).catch(error => toast(error.message));
   });
 </script>
 </body>

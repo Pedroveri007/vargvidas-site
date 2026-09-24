@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Informar Avistamento — VARG</title>
+<link rel="stylesheet" href="../css/style.css?v=2">
+</head>
+<body>
+<header class="site">
+  <div class="nav-wrap">
+    <a href="index.html" class="brand">
+      <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
+      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+    </a>
+    <nav class="main-nav">
+      <a href="index.html">Início</a>
+      <a href="pessoas.html">Pessoas Desaparecidas</a>
+      <a href="registrar.html">Registrar Desaparecimento</a>
+      <a href="avistamento.html">Informar Avistamento</a>
+      <a href="estatisticas.html">Estatísticas</a>
+      <a href="sobre.html">Sobre</a>
+      <a href="contato.html">Contato</a>
+    </nav>
+    <div class="nav-actions">
+      <a href="painel.html" class="btn btn-outline" style="padding:6px 10px;font-size:.75rem">Painel</a>
+      <button class="hamburger" onclick="toggleMenu()">☰</button>
+    </div>
+  </div>
+</header>
+
+<section style="padding-bottom:0">
+  <div class="container">
+    <span class="eyebrow">Ajude a reencontrar</span>
+    <h1>Informar Avistamento</h1>
+    <p style="color:var(--cinza-texto);max-width:640px">Viu alguém que pode ser uma pessoa cadastrada na VARG? Toda informação é analisada pela nossa equipe antes de ser repassada às autoridades. Você pode informar de forma anônima.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <form class="form-card" id="form-avistamento">
+      <div class="mascot-banner">
+        <img src="../logo/logo.svg" alt="Mascote VARG">
+        <div>
+          <strong>Avistamento</strong>
+          <span>Qualquer detalhe pode ajudar na localização e no reencontro.</span>
+        </div>
+      </div>
+      <div class="field full" id="case-field" style="display:none">
+        <label>Caso relacionado</label>
+        <input disabled id="case-label">
+        <input type="hidden" name="case_id" id="case_id">
+      </div>
+
+      <div class="form-section-title">O que você viu</div>
+      <div class="form-grid">
+        <div class="field full"><label>Descrição do que você observou *</label><textarea required name="description" rows="4" placeholder="Descreva a aparência, comportamento e qualquer detalhe relevante"></textarea></div>
+        <div class="field"><label>Data do avistamento</label><input type="date" name="sighting_date"></div>
+        <div class="field"><label>Horário aproximado</label><input name="sighting_time" placeholder="Ex: 18h30"></div>
+        <div class="field"><label>Cidade</label><input name="city"></div>
+        <div class="field"><label>Estado</label><select name="state"><option value="">UF</option></select></div>
+        <div class="field full"><label>Local (endereço, ponto de referência)</label><input name="location"></div>
+      </div>
+
+      <div class="form-section-title">Seus dados (opcional)</div>
+      <div class="field full checkbox-row"><input type="checkbox" id="anon" name="is_anonymous"><label for="anon" style="margin:0">Prefiro manter anonimato</label></div>
+      <div class="form-grid" id="contact-fields">
+        <div class="field"><label>Nome</label><input name="contact_name"></div>
+        <div class="field"><label>Telefone</label><input name="contact_phone"></div>
+        <div class="field full"><label>E-mail</label><input type="email" name="contact_email"></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" type="submit" style="margin-top:12px">Enviar informação</button>
+      <p class="helper" style="text-align:center;margin-top:10px">Em caso de emergência ou risco imediato, ligue 190 antes de qualquer outra coisa.</p>
+    </form>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="container footer-bottom"><span>© 2026 VARG — Vidas em Alerta para Reencontro e Gestão.</span></div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  const estados = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+  document.querySelector('select[name="state"]').innerHTML += estados.map(e=>`<option>${e}</option>`).join("");
+
+  const caseId = new URLSearchParams(location.search).get("case_id");
+  if (caseId) {
+    DB.getCaseById(caseId).then(c => {
+      document.getElementById("case-field").style.display = "block";
+      document.getElementById("case-label").value = c.full_name + " — " + c.protocol;
+      document.getElementById("case_id").value = c.id;
+    }).catch(() => {});
+  }
+
+  document.getElementById("anon").addEventListener("change", function(){
+    document.getElementById("contact-fields").style.opacity = this.checked ? .4 : 1;
+    document.getElementById("contact-fields").querySelectorAll("input").forEach(i => i.disabled = this.checked);
+  });
+
+  document.getElementById("form-avistamento").addEventListener("submit", function(e){
+    e.preventDefault();
+    const fd = new FormData(this);
+    const data = Object.fromEntries(fd.entries());
+    data.is_anonymous = !!fd.get("is_anonymous");
+    DB.addSighting(data).then(() => {
+      toast("Obrigado! Sua informação foi enviada para análise da equipe VARG.");
+      setTimeout(()=> location.href = caseId ? ("caso.html?id="+caseId) : "index.html", 1400);
+    }).catch(error => toast(error.message));
+  });
+</script>
+</body>
+</html>

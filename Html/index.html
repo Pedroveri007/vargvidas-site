@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VARG — Vidas em Alerta para Reencontro e Gestão</title>
+<link rel="stylesheet" href="../css/style.css?v=2">
+</head>
+<body>
+
+<header class="site">
+  <div class="nav-wrap">
+    <a href="index.html" class="brand">
+      <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
+      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+    </a>
+    <nav class="main-nav">
+      <a href="index.html">Início</a>
+      <a href="pessoas.html">Pessoas Desaparecidas</a>
+      <a href="registrar.html">Registrar Desaparecimento</a>
+      <a href="avistamento.html">Informar Avistamento</a>
+      <a href="estatisticas.html">Estatísticas</a>
+      <a href="sobre.html">Sobre</a>
+      <a href="contato.html">Contato</a>
+    </nav>
+    <div class="nav-actions">
+      <a href="painel.html" class="btn btn-outline" style="padding:6px 10px;font-size:.75rem">Painel</a>
+      <button class="hamburger" onclick="toggleMenu()">☰</button>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container hero-layout">
+    <div class="hero-copy">
+      <span class="eyebrow" style="color:#ffb4b4">Rede nacional de reencontro</span>
+      <h1>Cada informação pode ser o caminho de volta para casa.</h1>
+      <p>A VARG conecta famílias, voluntários e autoridades em um só lugar para acelerar a localização de pessoas desaparecidas em todo o Brasil.</p>
+      <div class="hero-actions">
+        <a href="registrar.html" class="btn btn-primary">Registrar Desaparecimento</a>
+        <a href="avistamento.html" class="btn btn-outline">Informar Avistamento</a>
+      </div>
+      <div class="hero-pills">
+        <span>Início</span>
+        <span>Pessoas desaparecidas</span>
+        <span>Cadastro</span>
+        <span>Mapeamento</span>
+      </div>
+    </div>
+
+    <div class="hero-visual">
+      <div class="mascot-card">
+        <div class="mascot-badge">
+          <img src="../logo/logo.svg" alt="Mascote VARG">
+        </div>
+        <div class="mascot-meta">
+          <span class="mini-tag">VARG</span>
+          <strong>Juntos pelo reencontro</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="stats-grid" id="stats-grid"></div>
+  </div>
+</section>
+
+<section>
+  <div class="container two-col">
+    <div>
+      <span class="eyebrow">Como funciona</span>
+      <h2>Três passos para agir</h2>
+      <div class="grid-3" style="margin-top:24px">
+        <div class="card-simple">
+          <h4 style="color:var(--vermelho)">1. Registrar</h4>
+          <p style="font-size:.88rem;color:var(--cinza-texto)">A família ou responsável cadastra o caso com fotos e características.</p>
+        </div>
+        <div class="card-simple">
+          <h4 style="color:var(--vermelho)">2. Divulgar</h4>
+          <p style="font-size:.88rem;color:var(--cinza-texto)">O caso passa por triagem e é publicado para toda a rede VARG.</p>
+        </div>
+        <div class="card-simple">
+          <h4 style="color:var(--vermelho)">3. Reencontrar</h4>
+          <p style="font-size:.88rem;color:var(--cinza-texto)">Avistamentos são validados e repassados às autoridades competentes.</p>
+        </div>
+      </div>
+    </div>
+    <div class="info-box">
+      <h4>Números de emergência</h4>
+      <dl>
+        <dt>Polícia Militar</dt><dd>190</dd>
+        <dt>Disque Direitos Humanos</dt><dd>100</dd>
+        <dt>Disque Denúncia</dt><dd>181</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="container footer-grid">
+    <div>
+      <div class="brand" style="margin-bottom:14px">
+        <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
+        <div class="brand-text" style="color:#fff"><strong style="color:#fff">VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+      </div>
+      <p style="font-size:.85rem;max-width:320px">Plataforma nacional de cadastro, divulgação e localização de pessoas desaparecidas.</p>
+    </div>
+    <div><h4>Navegação</h4>
+      <a href="pessoas.html">Pessoas Desaparecidas</a>
+      <a href="registrar.html">Registrar Desaparecimento</a>
+      <a href="avistamento.html">Informar Avistamento</a>
+    </div>
+    <div><h4>Institucional</h4>
+      <a href="sobre.html">Sobre a VARG</a>
+      <a href="estatisticas.html">Estatísticas</a>
+      <a href="contato.html">Contato</a>
+    </div>
+    <div><h4>Emergência</h4>
+      <a href="tel:190">Polícia: 190</a>
+      <a href="tel:100">Disque Direitos Humanos: 100</a>
+      <a href="tel:181">Disque Denúncia: 181</a>
+    </div>
+  </div>
+  <div class="container footer-bottom">
+    <span>© 2026 VARG — Vidas em Alerta para Reencontro e Gestão.</span>
+    <span>Feito para reunir famílias.</span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  DB.stats().then(st => {
+    document.getElementById("stats-grid").innerHTML = `
+      <div class="stat-card"><div class="num">${st.ativos}</div><div class="lbl">Buscas ativas</div></div>
+      <div class="stat-card"><div class="num">${st.encontrados}</div><div class="lbl">Pessoas reencontradas</div></div>
+      <div class="stat-card"><div class="num">${st.urgentes}</div><div class="lbl">Casos urgentes</div></div>
+    `;
+  }).catch(error => toast(error.message));
+
+</script>
+</body>
+</html>

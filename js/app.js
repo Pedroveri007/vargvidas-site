@@ -1,0 +1,96 @@
+const API_URL = '/api';
+
+function toast(message) {
+  let element = document.querySelector('.toast');
+  if (!element) {
+    element = document.createElement('div');
+    element.className = 'toast';
+    document.body.appendChild(element);
+  }
+  element.textContent = message;
+  element.classList.add('show');
+  clearTimeout(element._timer);
+  element._timer = setTimeout(() => element.classList.remove('show'), 3200);
+}
+
+function fmtDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString('pt-BR');
+}
+
+function statusLabel(status) {
+  return { pending: 'Em triagem', active: 'Busca ativa', found: 'Encontrado(a)', archived: 'Arquivado' }[status] || status;
+}
+
+function toggleMenu() {
+  document.querySelector('nav.main-nav')?.classList.toggle('open');
+}
+
+function markActiveNav() {
+  const currentPath = location.pathname.split('/').pop() || 'index.html';
+  document.querySelectorAll('nav.main-nav a').forEach(link => {
+    if (link.getAttribute('href') === currentPath) link.classList.add('active');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', markActiveNav);
+
+async function apiRequest(path, options = {}) {
+  const token = localStorage.getItem('varg_token');
+  const headers = { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(API_URL + path, { ...options, headers });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Não foi possível concluir a operação.');
+  return body;
+}
+
+const DB = {
+  getCases: filters => apiRequest(`/cases?${new URLSearchParams(filters)}`),
+  getCaseById: id => apiRequest(`/cases/${encodeURIComponent(id)}`),
+  getMyCases: () => apiRequest('/me/cases'),
+  getNotifications: () => apiRequest('/me/notifications'),
+  getUpdatesForCase: id => apiRequest(`/cases/${encodeURIComponent(id)}/history`),
+  addCase: data => apiRequest('/cases', { method: 'POST', body: JSON.stringify(data) }),
+  uploadCasePhoto: file => {
+    const formData = new FormData();
+    formData.append('photo', file);
+    return apiRequest('/uploads/case-photo', { method: 'POST', body: formData });
+  },
+  addSighting: data => apiRequest('/sightings', { method: 'POST', body: JSON.stringify(data) }),
+  addContactMessage: data => apiRequest('/contact', { method: 'POST', body: JSON.stringify(data) }),
+  getStates: () => apiRequest('/states'),
+  getCities: state => apiRequest(`/cities${state ? `?state=${encodeURIComponent(state)}` : ''}`),
+  stats: () => apiRequest('/stats'),
+  adminCases: filters => apiRequest(`/admin/cases?${new URLSearchParams(filters || {})}`),
+  adminSightings: () => apiRequest('/admin/sightings'),
+  adminDenuncias: () => apiRequest('/admin/denuncias'),
+  adminMessages: () => apiRequest('/admin/messages'),
+  adminFoundRequests: () => apiRequest('/admin/found-requests'),
+  approveFoundRequest: id => apiRequest(`/admin/found-requests/${encodeURIComponent(id)}/approve`, { method: 'PUT' }),
+  rejectFoundRequest: id => apiRequest(`/admin/found-requests/${encodeURIComponent(id)}/reject`, { method: 'PUT' }),
+  approveCase: id => apiRequest(`/admin/cases/${encodeURIComponent(id)}/approve`, { method: 'PUT' }),
+  rejectCase: (id, reason) => apiRequest(`/admin/cases/${encodeURIComponent(id)}/reject`, { method: 'PUT', body: JSON.stringify({ reason }) }),
+  archiveCase: id => apiRequest(`/admin/cases/${encodeURIComponent(id)}/archive`, { method: 'PUT' }),
+  requestFound: id => apiRequest(`/cases/${encodeURIComponent(id)}/found-request`, { method: 'POST' }),
+  async login(email, senha) {
+    const result = await apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ email, senha }) });
+    localStorage.setItem('varg_token', result.token);
+    localStorage.setItem('varg_session', JSON.stringify(result.user));
+    return result.user;
+  },
+  async register(data) {
+    const result = await apiRequest('/auth/register', { method: 'POST', body: JSON.stringify(data) });
+    localStorage.setItem('varg_token', result.token);
+    localStorage.setItem('varg_session', JSON.stringify(result.user));
+    return result.user;
+  },
+  logout() {
+    localStorage.removeItem('varg_token');
+    localStorage.removeItem('varg_session');
+  },
+  getSession() {
+    try { return JSON.parse(localStorage.getItem('varg_session')); }
+    catch (_) { return null; }
+  }
+};

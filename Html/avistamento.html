@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Informar Avistamento — VARG</title>
-<link rel="stylesheet" href="../css/style.css?v=2">
+<link rel="stylesheet" href="../css/style.css?v=5">
 </head>
 <body>
 <header class="site">
@@ -13,27 +13,26 @@
       <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
       <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
     </a>
-    <nav class="main-nav">
+    <nav class="main-nav" id="main-menu">
       <a href="index.html">Início</a>
       <a href="pessoas.html">Pessoas Desaparecidas</a>
-      <a href="registrar.html">Registrar Desaparecimento</a>
       <a href="avistamento.html">Informar Avistamento</a>
       <a href="estatisticas.html">Estatísticas</a>
       <a href="sobre.html">Sobre</a>
       <a href="contato.html">Contato</a>
     </nav>
     <div class="nav-actions">
-      <a href="painel.html" class="btn btn-outline" style="padding:6px 10px;font-size:.75rem">Painel</a>
-      <button class="hamburger" onclick="toggleMenu()">☰</button>
+      <a href="auth.html" class="btn nav-panel">Registrar um desaparecimento</a>
+      <button class="hamburger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="main-menu" onclick="toggleMenu()">☰</button>
     </div>
   </div>
 </header>
 
 <section style="padding-bottom:0">
-  <div class="container">
+  <div class="container" style="text-align:center">
     <span class="eyebrow">Ajude a reencontrar</span>
     <h1>Informar Avistamento</h1>
-    <p style="color:var(--cinza-texto);max-width:640px">Viu alguém que pode ser uma pessoa cadastrada na VARG? Toda informação é analisada pela nossa equipe antes de ser repassada às autoridades. Você pode informar de forma anônima.</p>
+    <p style="color:var(--cinza-texto);max-width:640px;margin-left:auto;margin-right:auto">Viu alguém que pode ser uma pessoa cadastrada na VARG? Toda informação é analisada pela nossa equipe antes de ser repassada às autoridades. Você pode informar de forma anônima.</p>
   </div>
 </section>
 
@@ -47,10 +46,12 @@
           <span>Qualquer detalhe pode ajudar na localização e no reencontro.</span>
         </div>
       </div>
-      <div class="field full" id="case-field" style="display:none">
-        <label>Caso relacionado</label>
-        <input disabled id="case-label">
-        <input type="hidden" name="case_id" id="case_id">
+      <div class="field full">
+        <label for="case_id">Quem você avistou? *</label>
+        <select required name="case_id" id="case_id">
+          <option value="">Carregando casos ativos...</option>
+        </select>
+        <p class="helper">Selecione a pessoa desaparecida relacionada ao avistamento.</p>
       </div>
 
       <div class="form-section-title">O que você viu</div>
@@ -83,17 +84,35 @@
 
 <script src="../js/app.js"></script>
 <script>
-  const estados = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
-  document.querySelector('select[name="state"]').innerHTML += estados.map(e=>`<option>${e}</option>`).join("");
+  const stateField = document.querySelector('select[name="state"]');
+  DB.getStates().then(states => {
+    stateField.innerHTML += states.map(state=>`<option value="${state.nome}">${state.nome}</option>`).join("");
+  }).catch(error => toast(error.message));
 
   const caseId = new URLSearchParams(location.search).get("case_id");
-  if (caseId) {
-    DB.getCaseById(caseId).then(c => {
-      document.getElementById("case-field").style.display = "block";
-      document.getElementById("case-label").value = c.full_name + " — " + c.protocol;
-      document.getElementById("case_id").value = c.id;
-    }).catch(() => {});
-  }
+  const caseField = document.getElementById("case_id");
+  DB.getCases({ status: "active" }).then(cases => {
+    caseField.replaceChildren(new Option("Selecione uma pessoa desaparecida", ""));
+    cases.forEach(person => {
+      const option = new Option(
+        `${person.full_name} — ${person.city}/${person.state} · ${person.protocol}`,
+        person.id
+      );
+      caseField.add(option);
+    });
+
+    if (caseId && cases.some(person => person.id === caseId)) {
+      caseField.value = caseId;
+    }
+    if (!cases.length) {
+      caseField.replaceChildren(new Option("Não há casos ativos para selecionar", ""));
+      caseField.disabled = true;
+    }
+  }).catch(error => {
+    caseField.replaceChildren(new Option("Não foi possível carregar os casos", ""));
+    caseField.disabled = true;
+    toast(error.message);
+  });
 
   document.getElementById("anon").addEventListener("change", function(){
     document.getElementById("contact-fields").style.opacity = this.checked ? .4 : 1;
@@ -102,14 +121,23 @@
 
   document.getElementById("form-avistamento").addEventListener("submit", function(e){
     e.preventDefault();
+    if (!caseField.value) {
+      caseField.setCustomValidity("Selecione a pessoa desaparecida relacionada ao avistamento.");
+      caseField.reportValidity();
+      return;
+    }
+    caseField.setCustomValidity("");
+
     const fd = new FormData(this);
     const data = Object.fromEntries(fd.entries());
     data.is_anonymous = !!fd.get("is_anonymous");
     DB.addSighting(data).then(() => {
       toast("Obrigado! Sua informação foi enviada para análise da equipe VARG.");
-      setTimeout(()=> location.href = caseId ? ("caso.html?id="+caseId) : "index.html", 1400);
+      setTimeout(()=> location.href = `caso.html?id=${encodeURIComponent(caseField.value)}`, 1400);
     }).catch(error => toast(error.message));
   });
+
+  caseField.addEventListener("change", () => caseField.setCustomValidity(""));
 </script>
 </body>
 </html>

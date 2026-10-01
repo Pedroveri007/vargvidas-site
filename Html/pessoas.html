@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pessoas Desaparecidas — VARG</title>
-<link rel="stylesheet" href="../css/style.css?v=2">
+<link rel="stylesheet" href="../css/style.css?v=5">
 </head>
 <body>
 <header class="site">
@@ -13,18 +13,17 @@
       <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
       <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
     </a>
-    <nav class="main-nav">
+    <nav class="main-nav" id="main-menu">
       <a href="index.html">Início</a>
       <a href="pessoas.html">Pessoas Desaparecidas</a>
-      <a href="registrar.html">Registrar Desaparecimento</a>
       <a href="avistamento.html">Informar Avistamento</a>
       <a href="estatisticas.html">Estatísticas</a>
       <a href="sobre.html">Sobre</a>
       <a href="contato.html">Contato</a>
     </nav>
     <div class="nav-actions">
-      <a href="painel.html" class="btn btn-outline" style="padding:6px 10px;font-size:.75rem">Painel</a>
-      <button class="hamburger" onclick="toggleMenu()">☰</button>
+      <a href="auth.html" class="btn nav-panel">Registrar um desaparecimento</a>
+      <button class="hamburger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="main-menu" onclick="toggleMenu()">☰</button>
     </div>
   </div>
 </header>
@@ -71,7 +70,6 @@
     </div>
     <div><h4>Navegação</h4>
       <a href="pessoas.html">Pessoas Desaparecidas</a>
-      <a href="registrar.html">Registrar Desaparecimento</a>
       <a href="avistamento.html">Informar Avistamento</a>
     </div>
     <div><h4>Institucional</h4>
@@ -93,8 +91,9 @@
 
 <script src="../js/app.js"></script>
 <script>
-  const estados = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
-  document.getElementById("f-state").innerHTML += estados.map(e=>`<option>${e}</option>`).join("");
+  DB.getStates().then(estados => {
+    document.getElementById("f-state").innerHTML += estados.map(estado=>`<option value="${estado.nome}">${estado.nome}</option>`).join("");
+  }).catch(error => toast(error.message));
 
   function renderList() {
     const filters = { q: document.getElementById("f-q").value, state: document.getElementById("f-state").value, status: document.getElementById("f-status").value, gender: document.getElementById("f-gender").value };
@@ -106,7 +105,7 @@
       <a class="case-card" href="caso.html?id=${c.id}">
         <div class="case-photo">
           ${c.status==="found" ? `<span class="badge encontrado">Encontrado(a)</span>` : c.is_urgent ? `<span class="badge">Urgente</span>` : ""}
-          ${c.photo_url ? `<img src="${c.photo_url}" alt="Foto de ${c.full_name}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : c.full_name.split(" ").map(n=>n[0]).slice(0,2).join("")}
+          ${c.photo_url ? `<img src="${mediaUrl(c.photo_url)}" alt="Foto de ${c.full_name}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : c.full_name.split(" ").map(n=>n[0]).slice(0,2).join("")}
         </div>
         <div class="case-info">
           <h3>${c.full_name}</h3>

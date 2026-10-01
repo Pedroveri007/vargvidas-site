@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel da Família — VARG</title>
-<link rel="stylesheet" href="../css/style.css?v=2">
+<link rel="stylesheet" href="../css/style.css?v=5">
 </head>
 <body>
 <header class="site">
@@ -13,16 +13,15 @@
       <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
       <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
     </a>
-    <nav class="main-nav">
+    <nav class="main-nav" id="main-menu">
       <a href="index.html">Início</a>
       <a href="pessoas.html">Pessoas Desaparecidas</a>
-      <a href="registrar.html">Registrar Desaparecimento</a>
       <a href="avistamento.html">Informar Avistamento</a>
       <a href="estatisticas.html">Estatísticas</a>
       <a href="sobre.html">Sobre</a>
       <a href="contato.html">Contato</a>
     </nav>
-    <div class="nav-actions"><button class="hamburger" onclick="toggleMenu()">☰</button></div>
+    <div class="nav-actions"><button class="hamburger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="main-menu" onclick="toggleMenu()">☰</button></div>
   </div>
 </header>
 
@@ -45,9 +44,10 @@
       const active = cases.filter(c => c.status === "active").length;
       const found = cases.filter(c => c.status === "found").length;
       const rows = cases.length ? cases.map(c => `<tr><td>${c.full_name}</td><td>${c.protocol}</td><td><span class="tag ${c.status === 'found' ? 'encontrado' : 'ativo'}">${statusLabel(c.status)}</span></td><td>${fmtDate(c.created_at)}</td><td>${c.status === 'active' ? `<button class="btn btn-outline-azul" onclick="requestFound('${c.id}')">Informar encontrado</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="5" class="empty-state">Nenhum caso cadastrado.</td></tr>';
+      const displayName = session.nome?.trim() || 'família';
       wrap.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
-        <div><span class="eyebrow">Painel da família</span><h1 style="margin:0">Olá, ${session.email}</h1></div>
+        <div><span class="eyebrow">Painel da família</span><h1 style="margin:0">Olá, ${escapeHtml(displayName)}</h1></div>
         <div style="display:flex;gap:10px">
           <a href="registrar.html" class="btn btn-primary">+ Novo caso</a>
           <button class="btn btn-outline-azul" onclick="DB.logout();location.href='index.html'">Sair</button>
@@ -66,7 +66,7 @@
       </table>
     `;
       DB.getNotifications().then(notifications => {
-        document.getElementById('notifications-box').innerHTML = `<h4>Notificações</h4>${notifications.length ? `<ul>${notifications.map(notification => `<li>${notification.mensagem}</li>`).join('')}</ul>` : '<p>Nenhuma notificação.</p>'}`;
+      document.getElementById('notifications-box').innerHTML = `<h4>Notificações</h4>${notifications.length ? `<ul>${notifications.map(notification => `<li>${escapeHtml(notification.mensagem)}</li>`).join('')}</ul>` : '<p>Nenhuma notificação.</p>'}`;
       }).catch(() => {});
     }).catch(error => { wrap.innerHTML = `<div class="empty-state">${error.message}</div>`; });
   }

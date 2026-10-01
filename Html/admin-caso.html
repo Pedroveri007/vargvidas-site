@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Detalhes do caso — Triagem VARG</title>
+<link rel="stylesheet" href="../css/style.css?v=5">
+</head>
+<body>
+<header class="site">
+  <div class="nav-wrap">
+    <div class="brand">
+      <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
+      <div class="brand-text"><strong>VARG · TRIAGEM</strong><span>Área administrativa restrita</span></div>
+    </div>
+    <div class="nav-actions">
+      <a class="btn btn-outline-azul" href="admin.html">Voltar à triagem</a>
+      <button class="btn btn-outline-azul" onclick="DB.logout();location.href='acesso-interno.html'">Sair</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="container" id="admin-case-content">
+      <p>Carregando detalhes do caso...</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="container footer-bottom"><span>Área administrativa restrita · VARG</span></div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  const caseId = new URLSearchParams(location.search).get('id');
+  const content = document.getElementById('admin-case-content');
+
+  if (!caseId) {
+    content.innerHTML = '<div class="empty-state"><h2>Caso não informado</h2><a class="btn btn-secondary" href="admin.html">Voltar à triagem</a></div>';
+  } else {
+    DB.adminCaseById(caseId).then(caseRecord => {
+      const photo = caseRecord.photo_url
+        ? `<img src="${escapeHtml(mediaUrl(caseRecord.photo_url))}" alt="Foto de ${escapeHtml(caseRecord.full_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`
+        : escapeHtml(caseRecord.full_name.split(' ').map(name => name[0]).slice(0, 2).join(''));
+      content.innerHTML = `
+        <span class="eyebrow">Triagem administrativa · Protocolo ${escapeHtml(caseRecord.protocol)}</span>
+        <h1>${escapeHtml(caseRecord.full_name)}</h1>
+        <div class="two-col">
+          <div>
+            <div class="case-photo" style="aspect-ratio:16/10;border-radius:var(--raio);font-size:3rem;margin-bottom:20px">${photo}</div>
+            <div class="info-box">
+              <h3>Dados da pessoa</h3>
+              <dl>
+                <dt>Nome social / apelido</dt><dd>${escapeHtml(caseRecord.nickname || '—')}</dd>
+                <dt>Idade</dt><dd>${caseRecord.age == null ? '—' : `${escapeHtml(caseRecord.age)} anos`}</dd>
+                <dt>Gênero</dt><dd>${escapeHtml(caseRecord.gender)}</dd>
+                <dt>Altura / peso</dt><dd>${escapeHtml(caseRecord.height_cm || '—')} cm / ${escapeHtml(caseRecord.weight_kg || '—')} kg</dd>
+                <dt>Olhos / cabelo / pele</dt><dd>${escapeHtml(caseRecord.eye_color || '—')} / ${escapeHtml(caseRecord.hair_color || '—')} / ${escapeHtml(caseRecord.skin_color || '—')}</dd>
+                <dt>Marcas e características</dt><dd>${escapeHtml(caseRecord.marks || '—')}</dd>
+                <dt>Roupas</dt><dd>${escapeHtml(caseRecord.clothing || '—')}</dd>
+              </dl>
+            </div>
+          </div>
+          <div>
+            <div class="info-box">
+              <h3>Dados do desaparecimento</h3>
+              <dl>
+                <dt>Status</dt><dd>${escapeHtml(statusLabel(caseRecord.status))}</dd>
+                <dt>Urgente</dt><dd>${caseRecord.is_urgent ? 'Sim' : 'Não'}</dd>
+                <dt>Cidade / estado</dt><dd>${escapeHtml(caseRecord.city || '—')} / ${escapeHtml(caseRecord.state || '—')}</dd>
+                <dt>Local visto por último</dt><dd>${escapeHtml(caseRecord.last_seen_location || '—')}</dd>
+                <dt>Data do desaparecimento</dt><dd>${escapeHtml(fmtDate(caseRecord.disappearance_date))}</dd>
+                <dt>Recebido em</dt><dd>${escapeHtml(fmtDate(caseRecord.created_at))}</dd>
+                <dt>Boletim de ocorrência</dt><dd>${escapeHtml(caseRecord.protocol || '—')}</dd>
+              </dl>
+              <h4>Circunstâncias</h4>
+              <p>${escapeHtml(caseRecord.circumstances || 'Sem detalhes informados.')}</p>
+            </div>
+            <div class="info-box" style="margin-top:16px">
+              <h3>Contato da família · restrito</h3>
+              <dl>
+                <dt>Responsável</dt><dd>${escapeHtml(caseRecord.family_contact_name || '—')}</dd>
+                <dt>Telefone</dt><dd>${escapeHtml(caseRecord.family_contact_phone || '—')}</dd>
+                <dt>E-mail</dt><dd>${escapeHtml(caseRecord.family_contact_email || '—')}</dd>
+              </dl>
+            </div>
+          </div>
+        </div>`;
+    }).catch(error => {
+      content.innerHTML = `<div class="empty-state"><h2>Não foi possível abrir o caso</h2><p>${escapeHtml(error.message)}</p><a class="btn btn-secondary" href="admin.html">Voltar à triagem</a></div>`;
+    });
+  }
+</script>
+</body>
+</html>

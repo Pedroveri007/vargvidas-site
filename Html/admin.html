@@ -4,25 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel Administrativo — VARG</title>
-<link rel="stylesheet" href="../css/style.css?v=2">
+<link rel="stylesheet" href="../css/style.css?v=6">
 </head>
 <body>
 <header class="site">
   <div class="nav-wrap">
-    <a href="index.html" class="brand">
+    <div class="brand">
       <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
-      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
-    </a>
-    <nav class="main-nav">
-      <a href="index.html">Início</a>
-      <a href="pessoas.html">Pessoas Desaparecidas</a>
-      <a href="registrar.html">Registrar Desaparecimento</a>
-      <a href="avistamento.html">Informar Avistamento</a>
-      <a href="estatisticas.html">Estatísticas</a>
-      <a href="sobre.html">Sobre</a>
-      <a href="contato.html">Contato</a>
-    </nav>
-    <div class="nav-actions"><button class="hamburger" onclick="toggleMenu()">☰</button></div>
+      <div class="brand-text"><strong>VARG · TRIAGEM</strong><span>Área administrativa restrita</span></div>
+    </div>
+    <div class="nav-actions"><button class="btn btn-outline-azul" onclick="DB.logout();location.href='acesso-interno.html'">Sair</button></div>
   </div>
 </header>
 
@@ -30,12 +21,13 @@
   <div class="container">
     <span class="eyebrow">Área restrita · equipe VARG</span>
     <h1>Painel Administrativo</h1>
-    <div class="tabs" style="max-width:520px">
+    <div class="tabs" style="max-width:800px">
       <button class="active" onclick="showAdminTab('casos')" id="tab-casos">Casos</button>
       <button onclick="showAdminTab('avistamentos')" id="tab-avistamentos">Avistamentos</button>
       <button onclick="showAdminTab('reencontros')" id="tab-reencontros">Reencontros</button>
       <button onclick="showAdminTab('denuncias')" id="tab-denuncias">Denúncias</button>
       <button onclick="showAdminTab('mensagens')" id="tab-mensagens">Mensagens</button>
+      <button onclick="showAdminTab('contas')" id="tab-contas">Contas</button>
     </div>
     <div id="admin-content"></div>
   </div>
@@ -48,13 +40,13 @@
 <script src="../js/app.js"></script>
 <script>
   async function showAdminTab(tab){
-    ["casos","avistamentos","reencontros","denuncias","mensagens"].forEach(name => document.getElementById("tab-" + name).classList.toggle("active", name === tab));
+    ["casos","avistamentos","reencontros","denuncias","mensagens","contas"].forEach(name => document.getElementById("tab-" + name).classList.toggle("active", name === tab));
     const content = document.getElementById("admin-content");
     content.innerHTML = '<p>Carregando...</p>';
     try {
       if (tab === "casos") {
         const cases = await DB.adminCases();
-        content.innerHTML = cases.length ? `<table><thead><tr><th>Protocolo</th><th>Nome</th><th>Cidade/UF</th><th>Status</th><th>Ações</th></tr></thead><tbody>${cases.map(c => `<tr><td>${c.protocol}</td><td>${c.full_name}</td><td>${c.city}/${c.state}</td><td><span class="tag ${c.status === 'found' ? 'encontrado' : 'ativo'}">${statusLabel(c.status)}</span></td><td><a class="btn btn-outline-azul" href="caso.html?id=${c.id}">Ver</a> ${c.status === 'pending' ? `<button class="btn btn-primary" onclick="changeCase('${c.id}','approve')">Aprovar</button><button class="btn btn-outline-azul" onclick="changeCase('${c.id}','reject')">Rejeitar</button>` : c.status === 'active' ? `<button class="btn btn-outline-azul" onclick="changeCase('${c.id}','archive')">Arquivar</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Nenhum caso encontrado.</div>';
+        content.innerHTML = cases.length ? `<table><thead><tr><th>Protocolo</th><th>Nome</th><th>Cidade/UF</th><th>Contato da família</th><th>Status</th><th>Ações</th></tr></thead><tbody>${cases.map(c => `<tr><td>${escapeHtml(c.protocol)}</td><td>${escapeHtml(c.full_name)}</td><td>${escapeHtml(c.city)}/${escapeHtml(c.state)}</td><td>${escapeHtml(c.family_contact_name)}${c.family_contact_phone ? `<br>${escapeHtml(c.family_contact_phone)}` : ''}${c.family_contact_email ? `<br>${escapeHtml(c.family_contact_email)}` : ''}</td><td><span class="tag ${c.status === 'found' ? 'encontrado' : c.status === 'deleted' ? 'arquivado' : 'ativo'}">${statusLabel(c.status)}</span></td><td><a class="btn btn-outline-azul" href="admin-caso.html?id=${encodeURIComponent(c.id)}">Ver</a> ${c.status === 'pending' ? `<button class="btn btn-primary" onclick="changeCase('${c.id}','approve')">Aprovar</button><button class="btn btn-outline-azul" onclick="changeCase('${c.id}','reject')">Rejeitar</button>` : c.status === 'active' ? `<button class="btn btn-primary" onclick="changeCase('${c.id}','found')">Confirmar encontrado</button><button class="btn btn-outline-azul" onclick="changeCase('${c.id}','archive')">Arquivar</button>` : ''} ${c.status !== 'deleted' ? `<button class="btn btn-outline-azul" data-name="${escapeHtml(c.full_name)}" data-protocol="${escapeHtml(c.protocol)}" onclick="removeCase('${c.id}',this)">Excluir</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Nenhum caso encontrado.</div>';
       } else if (tab === "avistamentos") {
         const sightings = await DB.adminSightings();
         content.innerHTML = sightings.length ? `<table><thead><tr><th>Data</th><th>Caso</th><th>Cidade/UF</th><th>Descrição</th></tr></thead><tbody>${sightings.map(s => `<tr><td>${fmtDate(s.sighting_date)}</td><td>${s.case_name}</td><td>${s.city}/${s.state}</td><td>${s.description || '—'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Nenhum avistamento recebido.</div>';
@@ -64,21 +56,69 @@
       } else if (tab === "denuncias") {
         const reports = await DB.adminDenuncias();
         content.innerHTML = reports.length ? `<table><thead><tr><th>Data</th><th>Caso</th><th>Descrição</th></tr></thead><tbody>${reports.map(r => `<tr><td>${fmtDate(r.data_denuncia)}</td><td>${r.case_name}</td><td>${r.descricao || '—'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Nenhuma denúncia recebida.</div>';
-      } else {
+      } else if (tab === "mensagens") {
         const messages = await DB.adminMessages();
-        content.innerHTML = messages.length ? `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Assunto</th><th>Mensagem</th></tr></thead><tbody>${messages.map(m => `<tr><td>${m.name || '—'}</td><td>${m.email || '—'}</td><td>${m.subject || '—'}</td><td>${m.message || '—'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Nenhuma mensagem recebida.</div>';
+        content.innerHTML = messages.length ? `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Assunto</th><th>Mensagem</th></tr></thead><tbody>${messages.map(m => `<tr><td>${escapeHtml(m.name || '—')}</td><td>${escapeHtml(m.email || '—')}</td><td>${escapeHtml(m.subject || '—')}</td><td>${escapeHtml(m.message || '—')}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Nenhuma mensagem recebida.</div>';
+      } else {
+        const users = await DB.adminUsers();
+        content.innerHTML = users.length ? `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Casos preservados</th><th>Ações</th></tr></thead><tbody>${users.map(user => `<tr><td>${escapeHtml(user.nome)}</td><td>${escapeHtml(user.email)}</td><td>${user.cases_count}</td><td><button class="btn btn-secondary" data-name="${escapeHtml(user.nome)}" onclick="sendUserNotice('${user.id}',this)">Enviar aviso</button> <button class="btn btn-outline-azul" data-name="${escapeHtml(user.nome)}" onclick="removeUser('${user.id}',this)">Excluir conta</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Nenhuma conta de família ativa.</div>';
       }
-    } catch (error) { content.innerHTML = `<div class="empty-state">${error.message}</div>`; }
+    } catch (error) {
+      content.innerHTML = error.message === 'Acesso restrito.' || error.message === 'Não autenticado.'
+        ? '<div class="empty-state"><h2>Acesso administrativo</h2><p>Entre pela página reservada à equipe para acessar a triagem.</p><a class="btn btn-secondary" href="acesso-interno.html">Entrar na área administrativa</a></div>'
+        : `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    }
   }
   async function changeCase(id, action) {
-    if (!confirm(action === 'approve' ? 'Aprovar e publicar este caso?' : action === 'reject' ? 'Rejeitar este caso?' : 'Arquivar este caso?')) return;
-    try { if (action === 'approve') await DB.approveCase(id); else if (action === 'reject') await DB.rejectCase(id); else await DB.archiveCase(id); toast('Ação concluída.'); showAdminTab('casos'); }
+    const prompt = {
+      approve: 'Aprovar e publicar este caso?',
+      reject: 'Rejeitar este caso?',
+      archive: 'Arquivar este caso?',
+      found: 'Confirmar que a pessoa foi encontrada? O caso continuará visível como encontrado.'
+    }[action];
+    if (!confirm(prompt)) return;
+    try {
+      if (action === 'approve') await DB.approveCase(id);
+      else if (action === 'reject') await DB.rejectCase(id);
+      else if (action === 'found') await DB.markCaseFound(id);
+      else await DB.archiveCase(id);
+      toast('Ação concluída.');
+      showAdminTab('casos');
+    }
     catch (error) { toast(error.message); }
+  }
+  async function removeCase(id, button) {
+    const { name, protocol } = button.dataset;
+    if (!confirm(`Ocultar o caso de ${name} (${protocol}) do site?\n\nO caso e todos os avistamentos, denúncias e históricos serão preservados no painel administrativo.`)) return;
+    try {
+      await DB.deleteCase(id);
+      toast('Caso ocultado do site; os registros foram preservados.');
+      showAdminTab('casos');
+    } catch (error) { toast(error.message); }
   }
   async function reviewFound(id, approved) {
     if (!confirm(approved ? 'Confirmar que a pessoa foi encontrada?' : 'Rejeitar esta solicitação?')) return;
     try { if (approved) await DB.approveFoundRequest(id); else await DB.rejectFoundRequest(id); toast('Solicitação analisada.'); showAdminTab('reencontros'); }
     catch (error) { toast(error.message); }
+  }
+  async function sendUserNotice(id, button) {
+    const name = button.dataset.name;
+    const message = prompt(`Digite o aviso para ${name}:`);
+    if (message === null) return;
+    if (!message.trim()) { toast('Digite o conteúdo do aviso.'); return; }
+    try {
+      await DB.sendUserNotice(id, message);
+      toast('Aviso enviado para o painel da família.');
+    } catch (error) { toast(error.message); }
+  }
+  async function removeUser(id, button) {
+    const name = button.dataset.name;
+    if (!confirm(`Desativar a conta de ${name}?\n\nA conta será anonimizada e perderá o acesso. Os casos e históricos cadastrados serão preservados.`)) return;
+    try {
+      await DB.deleteUser(id);
+      toast('Conta desativada e anonimizada; os registros foram preservados.');
+      showAdminTab('contas');
+    } catch (error) { toast(error.message); }
   }
   showAdminTab("casos");
 </script>

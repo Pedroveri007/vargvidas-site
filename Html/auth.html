@@ -43,18 +43,6 @@
       <form id="form-login">
         <div class="field"><label>E-mail</label><input required type="email" id="login-email"></div>
         <div class="field"><label>Senha</label><input required type="password" id="login-password"></div>
-        <div class="field" id="login-totp-step" style="display:none">
-          <div id="login-totp-setup" style="display:none;text-align:center">
-            <p>Instale um aplicativo autenticador e escaneie este QR code.</p>
-            <img id="login-totp-qr" alt="QR code para configurar o aplicativo autenticador" style="width:200px;height:200px;margin:12px auto">
-            <p class="helper">Ou digite esta chave no aplicativo:</p>
-            <strong id="login-totp-secret" style="overflow-wrap:anywhere"></strong>
-          </div>
-          <label for="login-totp-code">Código do aplicativo autenticador</label>
-          <input id="login-totp-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}">
-          <p class="helper">Digite o código atual de 6 dígitos.</p>
-          <button class="btn btn-outline-azul btn-block" id="login-totp-back" type="button" style="margin-top:10px">Voltar ao login</button>
-        </div>
         <button class="btn btn-primary btn-block" type="submit">Entrar</button>
       </form>
 
@@ -63,20 +51,9 @@
         <div class="field"><label>E-mail</label><input required type="email" id="reg-email"></div>
         <div class="field"><label>Telefone</label><input id="reg-phone"></div>
         <div class="field"><label>Senha</label><input required type="password" id="reg-password"></div>
-        <div class="field full" id="register-authenticator-step" style="display:none;text-align:center">
-          <p>Escaneie este QR code com um aplicativo autenticador. O código muda a cada 30 segundos.</p>
-          <img id="register-authenticator-qr" alt="QR code para configurar o aplicativo autenticador" style="width:200px;height:200px;margin:12px auto">
-          <p class="helper">Ou digite esta chave no aplicativo:</p>
-          <strong id="register-authenticator-secret" style="overflow-wrap:anywhere"></strong>
-        </div>
-        <div class="field" id="register-totp-code-field" style="display:none">
-          <label for="reg-code">Código do aplicativo autenticador</label>
-          <input id="reg-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}">
-          <p class="helper">A configuração expira em 10 minutos.</p>
-        </div>
-        <button class="btn btn-primary btn-block" id="register-submit" type="submit">Configurar aplicativo autenticador</button>
+        <button class="btn btn-primary btn-block" type="submit">Criar conta</button>
       </form>
-      <p class="helper" style="text-align:center;margin-top:14px">A conta usa senha e código temporário de aplicativo autenticador. Essa etapa não confirma a titularidade do e-mail.</p>
+      <p class="helper" style="text-align:center;margin-top:14px">Entre com seu e-mail e senha para acessar sua conta.</p>
     </div>
   </div>
 </section>
@@ -88,8 +65,6 @@
 <script src="../js/app.js"></script>
 <script>
   const authParams = new URLSearchParams(location.search);
-  let loginChallengeToken = "";
-  let registrationSetupStarted = false;
 
   function showTab(t){
     document.getElementById("tab-login").classList.toggle("active", t==="login");
@@ -108,90 +83,35 @@
     };
   }
 
-  async function startRegistration() {
-    const setup = await DB.startRegistration(registrationData());
-    registrationSetupStarted = true;
-    ["reg-name", "reg-email", "reg-phone", "reg-password"].forEach(id => {
-      document.getElementById(id).disabled = true;
-    });
-    document.getElementById("register-authenticator-step").style.display = "block";
-    document.getElementById("register-authenticator-qr").src = setup.qrCode;
-    document.getElementById("register-authenticator-secret").textContent = setup.secret;
-    document.getElementById("register-totp-code-field").style.display = "block";
-    document.getElementById("reg-code").required = true;
-    document.getElementById("reg-code").value = "";
-    document.getElementById("register-submit").textContent = "Confirmar código e criar conta";
-    toast(setup.message);
-  }
-
-  document.getElementById("form-login").addEventListener("submit", function(e){
+  document.getElementById("form-login").addEventListener("submit", async function(e){
     e.preventDefault();
     const button = this.querySelector('button[type="submit"]');
     button.disabled = true;
-    const operation = loginChallengeToken
-      ? DB.completeLogin(loginChallengeToken, document.getElementById("login-totp-code").value.trim())
-      : DB.login(document.getElementById("login-email").value, document.getElementById("login-password").value);
-    operation.then(result => {
-        if (!loginChallengeToken) {
-          loginChallengeToken = result.challengeToken;
-          document.getElementById("login-totp-step").style.display = "block";
-          document.getElementById("login-totp-code").required = true;
-          document.getElementById("login-email").disabled = true;
-          document.getElementById("login-password").disabled = true;
-          if (result.setupRequired) {
-            document.getElementById("login-totp-setup").style.display = "block";
-            document.getElementById("login-totp-qr").src = result.qrCode;
-            document.getElementById("login-totp-secret").textContent = result.secret;
-          }
-          button.textContent = "Validar código e entrar";
-          toast(result.setupRequired
-            ? "Configure o aplicativo autenticador para proteger sua conta."
-            : "Digite o código atual do aplicativo autenticador.");
-          return;
-        }
-        toast("Login realizado.");
-        setTimeout(()=> location.href="painel.html", 800);
-      })
-      .catch(error => toast(error.message))
-      .finally(() => { button.disabled = false; });
+    try {
+      await DB.login(document.getElementById("login-email").value, document.getElementById("login-password").value);
+      toast("Login realizado.");
+      setTimeout(()=> location.href="painel.html", 800);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      button.disabled = false;
+    }
   });
-  document.getElementById("login-totp-back").addEventListener("click", function() {
-    loginChallengeToken = "";
-    document.getElementById("login-totp-step").style.display = "none";
-    document.getElementById("login-totp-setup").style.display = "none";
-    document.getElementById("login-totp-code").required = false;
-    document.getElementById("login-totp-code").value = "";
-    document.getElementById("login-totp-qr").removeAttribute("src");
-    document.getElementById("login-totp-secret").textContent = "";
-    document.getElementById("login-email").disabled = false;
-    document.getElementById("login-password").disabled = false;
-    document.querySelector('#form-login button[type="submit"]').textContent = "Entrar";
-  });
-  document.getElementById("form-register").addEventListener("submit", function(e){
+  document.getElementById("form-register").addEventListener("submit", async function(e){
     e.preventDefault();
-    if (!registrationSetupStarted) {
-      if (!this.reportValidity()) return;
-      startRegistration().catch(error => toast(error.message));
-      return;
-    }
-
-    const codigo = document.getElementById("reg-code").value.trim();
-    if (!/^\d{6}$/.test(codigo)) {
-      document.getElementById("reg-code").setCustomValidity("Digite o código de 6 dígitos.");
-      document.getElementById("reg-code").reportValidity();
-      return;
-    }
-    document.getElementById("reg-code").setCustomValidity("");
-    DB.completeRegistration(registrationData().email, codigo).then(()=> {
+    if (!this.reportValidity()) return;
+    const button = this.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await DB.register(registrationData());
       toast("Conta criada com sucesso.");
       setTimeout(()=> location.href="painel.html", 800);
-    })
-      .catch(error => toast(error.message));
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      button.disabled = false;
+    }
   });
-  document.getElementById("reg-code").addEventListener("input", function() {
-    this.setCustomValidity("");
-  });
-  document.getElementById("login-totp-code").addEventListener("input", function() { this.setCustomValidity(""); });
 </script>
 </body>
 </html>

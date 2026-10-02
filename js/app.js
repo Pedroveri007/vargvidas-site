@@ -1,6 +1,6 @@
 const API_URL = location.protocol === 'file:'
   ? 'http://localhost:3000/api'
-  : location.port === '5500'
+  : ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && location.port !== '3000'
     ? `${location.protocol}//${location.hostname}:3000/api`
     : '/api';
 
@@ -105,23 +105,14 @@ const DB = {
   markCaseFound: id => apiRequest(`/admin/cases/${encodeURIComponent(id)}/found`, { method: 'PUT' }),
   deleteCase: id => apiRequest(`/admin/cases/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   requestFound: id => apiRequest(`/cases/${encodeURIComponent(id)}/found-request`, { method: 'POST' }),
-  login(email, senha) {
-    return apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ email, senha }) });
-  },
-  async completeLogin(challengeToken, codigo) {
-    const result = await apiRequest('/auth/login/verify-totp', {
-      method: 'POST',
-      body: JSON.stringify({ challengeToken, codigo })
-    });
+  async login(email, senha) {
+    const result = await apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ email, senha }) });
     localStorage.setItem('varg_token', result.token);
     localStorage.setItem('varg_session', JSON.stringify(result.user));
     return result.user;
   },
-  startRegistration(data) {
-    return apiRequest('/auth/register/start', { method: 'POST', body: JSON.stringify(data) });
-  },
-  async completeRegistration(email, codigo) {
-    const result = await apiRequest('/auth/register/complete', { method: 'POST', body: JSON.stringify({ email, codigo }) });
+  async register(data) {
+    const result = await apiRequest('/auth/register', { method: 'POST', body: JSON.stringify(data) });
     localStorage.setItem('varg_token', result.token);
     localStorage.setItem('varg_session', JSON.stringify(result.user));
     return result.user;

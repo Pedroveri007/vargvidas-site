@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VARG — Vidas em Alerta para Reencontro e Gestão</title>
-<link rel="stylesheet" href="../css/style.css?v=5">
+<link rel="stylesheet" href="../css/style.css?v=6">
 </head>
 <body>
 
@@ -40,16 +40,10 @@
         <a href="avistamento.html" class="btn btn-outline">Informar Avistamento</a>
       </div>
     </div>
-
     <div class="hero-visual">
       <div class="mascot-card">
-        <div class="mascot-badge">
-          <img src="../logo/logo.svg" alt="Mascote VARG">
-        </div>
-        <div class="mascot-meta">
-          <span class="mini-tag">VARG</span>
-          <strong>Juntos pelo reencontro</strong>
-        </div>
+        <div class="mascot-badge"><img src="../logo/passarinho_sem_fundo.png" alt="Mascote VARG"></div>
+        <div class="mascot-meta"><span class="mini-tag">VARG</span><strong>Juntos pelo reencontro</strong></div>
       </div>
     </div>
   </div>
@@ -57,39 +51,23 @@
 
 <section>
   <div class="container">
-    <div class="stats-grid" id="stats-grid"></div>
+    <span class="eyebrow">Base pública de casos</span>
+    <h2>Pessoas desaparecidas</h2>
+    <p style="color:var(--cinza-texto);max-width:720px">Consulte e filtre os casos publicados na VARG.</p>
+    <form class="filters-bar" id="home-filters">
+      <div><label for="home-query">Nome ou cidade</label><input id="home-query" placeholder="Buscar pessoas"></div>
+      <div><label for="home-state">Estado</label><select id="home-state"><option value="">Todos</option></select></div>
+      <div><label for="home-status">Situação</label><select id="home-status"><option value="">Todas</option><option value="active">Busca ativa</option><option value="found">Encontrado(a)</option></select></div>
+      <div><label for="home-gender">Gênero</label><select id="home-gender"><option value="">Todos</option><option>Feminino</option><option>Masculino</option></select></div>
+      <button class="btn btn-secondary" type="submit">Filtrar</button>
+    </form>
+    <div id="home-result-count" style="margin-bottom:16px;color:var(--cinza-texto);font-size:.88rem" role="status">Carregando casos...</div>
+    <div class="cases-grid" id="home-cases"></div>
   </div>
 </section>
 
 <section>
-  <div class="container two-col">
-    <div>
-      <span class="eyebrow">Como funciona</span>
-      <h2>Três passos para agir</h2>
-      <div class="grid-3" style="margin-top:24px">
-        <div class="card-simple">
-          <h4 style="color:var(--vermelho)">1. Registrar</h4>
-          <p style="font-size:.88rem;color:var(--cinza-texto)">A família ou responsável cadastra o caso com fotos e características.</p>
-        </div>
-        <div class="card-simple">
-          <h4 style="color:var(--vermelho)">2. Divulgar</h4>
-          <p style="font-size:.88rem;color:var(--cinza-texto)">O caso passa por triagem e é publicado para toda a rede VARG.</p>
-        </div>
-        <div class="card-simple">
-          <h4 style="color:var(--vermelho)">3. Reencontrar</h4>
-          <p style="font-size:.88rem;color:var(--cinza-texto)">Avistamentos são validados e repassados às autoridades competentes.</p>
-        </div>
-      </div>
-    </div>
-    <div class="info-box">
-      <h4>Números de emergência</h4>
-      <dl>
-        <dt>Polícia Militar</dt><dd>190</dd>
-        <dt>Disque Direitos Humanos</dt><dd>100</dd>
-        <dt>Disque Denúncia</dt><dd>181</dd>
-      </dl>
-    </div>
-  </div>
+  <div class="container"><div class="stats-grid" id="stats-grid"></div></div>
 </section>
 
 <footer class="site">
@@ -124,14 +102,65 @@
 
 <script src="../js/app.js"></script>
 <script>
-  DB.stats().then(st => {
+  let allCases = [];
+
+  function renderCases() {
+    const query = document.getElementById("home-query").value.trim().toLocaleLowerCase("pt-BR");
+    const state = document.getElementById("home-state").value;
+    const status = document.getElementById("home-status").value;
+    const gender = document.getElementById("home-gender").value;
+    const cases = allCases.filter(person => {
+      const matchesQuery = !query || `${person.full_name} ${person.city}`.toLocaleLowerCase("pt-BR").includes(query);
+      return matchesQuery && (!state || person.state === state) && (!status || person.status === status) && (!gender || person.gender === gender);
+    });
+    const count = document.getElementById("home-result-count");
+    const wrap = document.getElementById("home-cases");
+    count.textContent = `${cases.length} caso(s) encontrado(s)`;
+
+    if (!cases.length) {
+      wrap.innerHTML = `<div class="empty-state" style="grid-column:1/-1">${allCases.length ? "Nenhuma pessoa corresponde aos filtros." : "Nenhuma pessoa cadastrada no momento."}</div>`;
+      return;
+    }
+
+    wrap.innerHTML = cases.map(person => `
+      <a class="case-card" href="caso.html?id=${encodeURIComponent(person.id)}">
+        <div class="case-photo">
+          ${person.status === "found" ? '<span class="badge encontrado">Encontrado(a)</span>' : person.is_urgent ? '<span class="badge">Urgente</span>' : ""}
+          ${person.photo_url ? `<img src="${escapeHtml(mediaUrl(person.photo_url))}" alt="Foto de ${escapeHtml(person.full_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : escapeHtml(person.full_name.split(" ").map(name => name[0]).slice(0, 2).join(""))}
+        </div>
+        <div class="case-info">
+          <h3>${escapeHtml(person.full_name)}</h3>
+          <div class="meta">${person.age == null ? "Idade não informada" : `${person.age} anos`} · ${escapeHtml(person.city || "Cidade não informada")}/${escapeHtml(person.state || "UF não informada")}</div>
+          <div class="meta">Desde ${fmtDate(person.disappearance_date)}</div>
+          <span class="tag ${person.status === "found" ? "encontrado" : "ativo"}" style="width:fit-content">${escapeHtml(statusLabel(person.status))}</span>
+          <div class="protocol">${escapeHtml(person.protocol)}</div>
+        </div>
+      </a>
+    `).join("");
+  }
+
+  document.getElementById("home-filters").addEventListener("submit", event => {
+    event.preventDefault();
+    renderCases();
+  });
+
+  DB.getCases().then(cases => {
+    allCases = cases;
+    const states = [...new Set(cases.map(person => person.state).filter(Boolean))].sort((first, second) => first.localeCompare(second, "pt-BR"));
+    document.getElementById("home-state").innerHTML += states.map(state => `<option value="${escapeHtml(state)}">${escapeHtml(state)}</option>`).join("");
+    renderCases();
+  }).catch(error => {
+    document.getElementById("home-result-count").textContent = "Não foi possível carregar os casos.";
+    document.getElementById("home-cases").innerHTML = `<div class="empty-state" style="grid-column:1/-1">${escapeHtml(error.message)}</div>`;
+  });
+
+  DB.stats().then(stats => {
     document.getElementById("stats-grid").innerHTML = `
-      <div class="stat-card"><div class="num">${st.ativos}</div><div class="lbl">Buscas ativas</div></div>
-      <div class="stat-card"><div class="num">${st.encontrados}</div><div class="lbl">Pessoas reencontradas</div></div>
-      <div class="stat-card"><div class="num">${st.urgentes}</div><div class="lbl">Casos urgentes</div></div>
+      <div class="stat-card"><div class="num">${stats.ativos}</div><div class="lbl">Buscas ativas</div></div>
+      <div class="stat-card"><div class="num">${stats.encontrados}</div><div class="lbl">Pessoas reencontradas</div></div>
+      <div class="stat-card"><div class="num">${stats.urgentes}</div><div class="lbl">Casos urgentes</div></div>
     `;
   }).catch(error => toast(error.message));
-
 </script>
 </body>
 </html>

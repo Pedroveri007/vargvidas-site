@@ -29,17 +29,6 @@
       <form id="admin-login-form">
         <div class="field"><label for="admin-email">E-mail</label><input required type="email" id="admin-email" autocomplete="username"></div>
         <div class="field"><label for="admin-password">Senha</label><input required type="password" id="admin-password" autocomplete="current-password"></div>
-        <div class="field" id="admin-totp-step" style="display:none">
-          <div id="admin-totp-setup" style="display:none;text-align:center">
-            <p>Configure um aplicativo autenticador para esta conta administrativa.</p>
-            <img id="admin-totp-qr" alt="QR code do aplicativo autenticador" style="width:200px;height:200px;margin:12px auto">
-            <p class="helper">Ou digite esta chave manualmente:</p>
-            <strong id="admin-totp-secret" style="overflow-wrap:anywhere"></strong>
-          </div>
-          <label for="admin-totp-code">Código do aplicativo autenticador</label>
-          <input id="admin-totp-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}">
-          <button class="btn btn-outline-azul btn-block" id="admin-totp-back" type="button" style="margin-top:10px">Voltar ao login</button>
-        </div>
         <button class="btn btn-primary btn-block" type="submit">Entrar na triagem</button>
       </form>
       <p id="admin-login-error" class="helper" role="alert" hidden></p>
@@ -54,7 +43,6 @@
 
 <script src="../js/app.js"></script>
 <script>
-  let adminChallengeToken = "";
   document.getElementById('admin-login-form').addEventListener('submit', async function(event) {
     event.preventDefault();
     const button = this.querySelector('button[type="submit"]');
@@ -62,33 +50,14 @@
     button.disabled = true;
     errorMessage.hidden = true;
     try {
-      if (!adminChallengeToken) {
-        const challenge = await DB.login(
-          document.getElementById('admin-email').value,
-          document.getElementById('admin-password').value
-        );
-        if (challenge.user.role !== 'ADMIN') {
-          throw new Error('Esta conta não tem autorização para acessar a triagem administrativa.');
-        }
-        adminChallengeToken = challenge.challengeToken;
-        document.getElementById('admin-totp-step').style.display = 'block';
-        document.getElementById('admin-totp-code').required = true;
-        document.getElementById('admin-email').disabled = true;
-        document.getElementById('admin-password').disabled = true;
-        if (challenge.setupRequired) {
-          document.getElementById('admin-totp-setup').style.display = 'block';
-          document.getElementById('admin-totp-qr').src = challenge.qrCode;
-          document.getElementById('admin-totp-secret').textContent = challenge.secret;
-        }
-        button.textContent = 'Validar código e entrar';
-        errorMessage.textContent = challenge.setupRequired
-          ? 'Configure o aplicativo autenticador e informe o código gerado.'
-          : 'Informe o código atual do aplicativo autenticador.';
-        errorMessage.hidden = false;
-        return;
+      const user = await DB.login(
+        document.getElementById('admin-email').value,
+        document.getElementById('admin-password').value
+      );
+      if (user.role !== 'ADMIN') {
+        DB.logout();
+        throw new Error('Esta conta não tem autorização para acessar a triagem administrativa.');
       }
-      const user = await DB.completeLogin(adminChallengeToken, document.getElementById('admin-totp-code').value.trim());
-      if (user.role !== 'ADMIN') throw new Error('Esta conta não tem autorização para acessar a triagem administrativa.');
       location.href = 'admin.html';
     } catch (error) {
       errorMessage.textContent = error.message;
@@ -96,19 +65,6 @@
     } finally {
       button.disabled = false;
     }
-  });
-  document.getElementById('admin-totp-back').addEventListener('click', function() {
-    adminChallengeToken = '';
-    document.getElementById('admin-totp-step').style.display = 'none';
-    document.getElementById('admin-totp-setup').style.display = 'none';
-    document.getElementById('admin-totp-code').required = false;
-    document.getElementById('admin-totp-code').value = '';
-    document.getElementById('admin-totp-qr').removeAttribute('src');
-    document.getElementById('admin-totp-secret').textContent = '';
-    document.getElementById('admin-email').disabled = false;
-    document.getElementById('admin-password').disabled = false;
-    document.querySelector('#admin-login-form button[type="submit"]').textContent = 'Entrar na triagem';
-    document.getElementById('admin-login-error').hidden = true;
   });
 </script>
 </body>

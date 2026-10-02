@@ -65,9 +65,31 @@
         <tbody>${rows}</tbody>
       </table>
     `;
-      DB.getNotifications().then(notifications => {
-      document.getElementById('notifications-box').innerHTML = `<h4>Notificações</h4>${notifications.length ? `<ul>${notifications.map(notification => `<li>${escapeHtml(notification.mensagem)}</li>`).join('')}</ul>` : '<p>Nenhuma notificação.</p>'}`;
-      }).catch(() => {});
+      let notificationExpiryTimer;
+      async function loadNotifications() {
+        const box = document.getElementById('notifications-box');
+        try {
+          const notifications = await DB.getNotifications();
+          box.innerHTML = `<h4>Notificações</h4>${notifications.length ? `<ul>${notifications.map(notification => `<li>${escapeHtml(notification.mensagem)}</li>`).join('')}</ul>` : '<p>Nenhuma notificação.</p>'}`;
+          clearTimeout(notificationExpiryTimer);
+          const nextExpiry = notifications
+            .filter(notification => notification.created_at)
+            .map(notification => new Date(notification.created_at).getTime() + 60 * 60 * 1000)
+            .filter(expiry => expiry > Date.now())
+            .sort((first, second) => first - second)[0];
+          if (nextExpiry) notificationExpiryTimer = setTimeout(loadNotifications, nextExpiry - Date.now());
+        } catch (error) {
+          box.innerHTML = `<h4>Notificações</h4><p>Não foi possível carregar os avisos. ${escapeHtml(error.message)}. O painel tentará novamente.</p>`;
+        }
+      }
+      loadNotifications();
+      const notificationsTimer = setInterval(() => {
+        if (!document.hidden) loadNotifications();
+      }, 15000);
+      window.addEventListener('pagehide', () => {
+        clearInterval(notificationsTimer);
+        clearTimeout(notificationExpiryTimer);
+      }, { once: true });
     }).catch(error => { wrap.innerHTML = `<div class="empty-state">${error.message}</div>`; });
   }
   async function requestFound(id) {

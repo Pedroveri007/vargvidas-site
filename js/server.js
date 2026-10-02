@@ -7,8 +7,6 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const mysql = require('mysql2/promise');
 const multer = require('multer');
-const speakeasy = require('speakeasy');
-const QRCode = require('qrcode');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -25,7 +23,6 @@ const stateNamesByCode = {
   TO: 'Tocantins'
 };
 const uploadDirectory = path.join(__dirname, 'uploads');
-const loginChallengeAttempts = new Map();
 fs.mkdirSync(uploadDirectory, { recursive: true });
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
@@ -41,7 +38,8 @@ app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 const projectRoot = path.resolve(__dirname, '..');
 app.use(express.static(projectRoot));
-app.get('/', (req, res) => res.sendFile(path.join(projectRoot, 'Html', 'index.html')));
+app.use(express.static(path.join(projectRoot, 'Html'), { index: false }));
+app.get('/', (req, res) => res.redirect('/Html/index.html'));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const imageUpload = multer({
@@ -69,57 +67,8 @@ function verifyPassword(password, stored) {
   return expected.length === actual.length && crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 }
 
-function tokenFor(user) {
-  return jwt.sign({ idUsuario: user.idUsuario, email: user.email, role: user.role, twoFactorVerified: true, authVersion: 1 }, jwtSecret, { expiresIn: '8h' });
-}
-
-function encryptTotpSecret(secret) {
-  const key = crypto.scryptSync(jwtSecret, 'varg-totp-encryption-v1', 32);
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const ciphertext = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
-  return [iv, cipher.getAuthTag(), ciphertext].map(part => part.toString('base64url')).join('.');
-}
-
-function decryptTotpSecret(encrypted) {
-  const [ivPart, tagPart, ciphertextPart] = String(encrypted || '').split('.');
-  if (!ivPart || !tagPart || !ciphertextPart) throw new Error('Chave autenticadora inválida.');
-  const key = crypto.scryptSync(jwtSecret, 'varg-totp-encryption-v1', 32);
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivPart, 'base64url'));
-  decipher.setAuthTag(Buffer.from(tagPart, 'base64url'));
-  return Buffer.concat([
-    decipher.update(Buffer.from(ciphertextPart, 'base64url')),
-    decipher.final()
-  ]).toString('utf8');
-}
-
-function verifyTotp(secret, code, lastCounter = null) {
-  if (!/^\d{6}$/.test(String(code || ''))) return null;
-  const delta = speakeasy.totp.verifyDelta({
-    secret,
-    encoding: 'base32',
-    token: String(code),
-    window: 1
-  });
-  if (delta === null) return null;
-  const counter = Math.floor(Date.now() / 30000) + delta;
-  return lastCounter !== null && counter <= Number(lastCounter) ? null : counter;
-}
-
-async function authenticatorSetup(secret, email) {
-  const generated = speakeasy.otpauthURL({
-    secret,
-    label: email,
-    issuer: 'VARG',
-    encoding: 'base32',
-    algorithm: 'sha1',
-    digits: 6,
-    period: 30
-  });
-  return {
-    secret,
-    qrCode: await QRCode.toDataURL(generated)
-  };
+function tokenFor(user, authVersion = 1) {
+  return jwt.sign({ idUsuario: user.idUsuario, email: user.email, role: user.role, authVersion }, jwtSecret, { expiresIn: '8h' });
 }
 
 function auth(required = true) {
@@ -135,8 +84,8 @@ function auth(required = true) {
     try {
       const [rows] = await pool.execute('SELECT ativo,auth_version FROM usuarios WHERE idUsuario=? LIMIT 1', [user.idUsuario]);
       if (!rows[0] || !rows[0].ativo) return res.status(401).json({ error: 'Sessão inválida ou conta desativada.' });
-      if (user.twoFactorVerified !== true || Number(user.authVersion) !== Number(rows[0].auth_version)) {
-        return res.status(401).json({ error: 'A autenticação em duas etapas não foi concluída. Entre novamente.' });
+      if (Number(user.authVersion) !== Number(rows[0].auth_version)) {
+        return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
       }
       req.user = user;
       next();
@@ -264,10 +213,6 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.post('/api/auth/register', async (req, res) => {
-  res.status(410).json({ error: 'Inicie o cadastro e configure um aplicativo autenticador para confirmar sua conta.' });
-});
-
-app.post('/api/auth/register/start', async (req, res) => {
   const nome = String(req.body.nome || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
   const senha = String(req.body.senha || '');
@@ -276,215 +221,52 @@ app.post('/api/auth/register/start', async (req, res) => {
     return res.status(400).json({ error: 'Informe nome, e-mail válido e senha com pelo menos 8 caracteres.' });
   }
 
-  let connection;
   try {
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-    const [users] = await connection.execute('SELECT idUsuario FROM usuarios WHERE LOWER(email)=? AND ativo=1 LIMIT 1', [email]);
-    if (users.length) {
-      await connection.rollback();
-      return res.status(409).json({ error: 'Já existe uma conta ativa com esse e-mail.' });
-    }
-    const [pending] = await connection.execute('SELECT enviado_em FROM cadastros_pendentes WHERE email=? FOR UPDATE', [email]);
-    if (pending[0] && Date.now() - new Date(pending[0].enviado_em).getTime() < 60000) {
-      await connection.rollback();
-      return res.status(429).json({ error: 'Já existe uma configuração recente para este e-mail. Aguarde um minuto antes de tentar novamente.' });
-    }
+    const [users] = await pool.execute('SELECT idUsuario FROM usuarios WHERE LOWER(email)=? LIMIT 1', [email]);
+    if (users.length) return res.status(409).json({ error: 'Já existe uma conta com esse e-mail.' });
 
-    const secret = speakeasy.generateSecret({ length: 20 }).base32;
-    const encryptedSecret = encryptTotpSecret(secret);
-    const setupHash = crypto.createHash('sha256').update(crypto.randomBytes(32)).digest('hex');
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    await connection.execute(`INSERT INTO cadastros_pendentes (nome,email,senha,telefone,codigo_hash,totp_secret,expira_em,enviado_em,tentativas)
-      VALUES (?,?,?,?,?,?,?,NOW(),0)
-      ON DUPLICATE KEY UPDATE nome=VALUES(nome),senha=VALUES(senha),telefone=VALUES(telefone),codigo_hash=VALUES(codigo_hash),totp_secret=VALUES(totp_secret),expira_em=VALUES(expira_em),enviado_em=NOW(),tentativas=0`,
-    [nome, email, hashPassword(senha), telefone || null, setupHash, encryptedSecret, expiresAt]);
-    await connection.commit();
-
-    const setup = await authenticatorSetup(secret, email);
-    res.json({
-      ok: true,
-      email,
-      secret: setup.secret,
-      qrCode: setup.qrCode,
-      expiresInSeconds: 600,
-      message: 'Escaneie o QR code em um aplicativo autenticador e informe o código gerado.'
-    });
-  } catch (error) {
-    if (connection) await connection.rollback().catch(rollbackError => console.error('Falha ao desfazer início do cadastro:', rollbackError));
-    console.error('Falha ao iniciar cadastro com autenticador:', error);
-    res.status(500).json({ error: 'Não foi possível iniciar a configuração do autenticador.' });
-  } finally {
-    connection?.release();
-  }
-});
-
-app.post('/api/auth/register/complete', async (req, res) => {
-  const email = String(req.body.email || '').trim().toLowerCase();
-  const code = String(req.body.codigo || '').trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(code)) {
-    return res.status(400).json({ error: 'Informe o e-mail e o código de 6 dígitos do aplicativo autenticador.' });
-  }
-
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-    const [pendingRows] = await connection.execute('SELECT * FROM cadastros_pendentes WHERE email=? FOR UPDATE', [email]);
-    const pending = pendingRows[0];
-    if (!pending) {
-      await connection.rollback();
-      return res.status(400).json({ error: 'Configuração não encontrada. Reinicie o cadastro.' });
-    }
-    if (new Date(pending.expira_em).getTime() <= Date.now()) {
-      await connection.execute('DELETE FROM cadastros_pendentes WHERE email=?', [email]);
-      await connection.commit();
-      return res.status(400).json({ error: 'A configuração expirou. Reinicie o cadastro.' });
-    }
-    if (pending.tentativas >= 5) {
-      await connection.execute('DELETE FROM cadastros_pendentes WHERE email=?', [email]);
-      await connection.commit();
-      return res.status(429).json({ error: 'Limite de tentativas atingido. Reinicie o cadastro.' });
-    }
-
-    const secret = decryptTotpSecret(pending.totp_secret);
-    const counter = verifyTotp(secret, code);
-    if (counter === null) {
-      await connection.execute('UPDATE cadastros_pendentes SET tentativas=tentativas+1 WHERE email=?', [email]);
-      await connection.commit();
-      return res.status(400).json({ error: 'Código inválido ou expirado. Confira o horário do dispositivo e tente novamente.' });
-    }
-
-    const [existing] = await connection.execute('SELECT idUsuario FROM usuarios WHERE LOWER(email)=? AND ativo=1 LIMIT 1', [email]);
-    if (existing.length) {
-      await connection.execute('DELETE FROM cadastros_pendentes WHERE email=?', [email]);
-      await connection.commit();
-      return res.status(409).json({ error: 'Já existe uma conta ativa com esse e-mail.' });
-    }
-    const [result] = await connection.execute(`INSERT INTO usuarios
-      (nome,email,senha,telefone,role,ativo,totp_secret,totp_last_counter)
-      VALUES (?,?,?,?,'USUARIO',1,?,?)`,
-    [pending.nome, pending.email, pending.senha, pending.telefone, pending.totp_secret, counter]);
-    await connection.execute('DELETE FROM cadastros_pendentes WHERE email=?', [email]);
-    await connection.commit();
-    const user = { idUsuario: result.insertId, email: pending.email, role: 'USUARIO', nome: pending.nome };
+    const [result] = await pool.execute(`INSERT INTO usuarios (nome,email,senha,telefone,role,ativo)
+      VALUES (?,?,?,?,'USUARIO',1)`, [nome, email, hashPassword(senha), telefone || null]);
+    const user = { idUsuario: result.insertId, email, role: 'USUARIO', nome };
     res.status(201).json({ user, token: tokenFor(user) });
   } catch (error) {
-    if (connection) await connection.rollback().catch(rollbackError => console.error('Falha ao desfazer confirmação do cadastro:', rollbackError));
-    console.error('Falha ao concluir cadastro com autenticador:', error);
-    res.status(error.code === 'ER_DUP_ENTRY' ? 409 : 500).json({ error: error.code === 'ER_DUP_ENTRY' ? 'Já existe uma conta com esse e-mail.' : 'Falha ao confirmar o cadastro.' });
-  } finally {
-    connection?.release();
+    console.error('Falha ao cadastrar usuário:', error);
+    res.status(error.code === 'ER_DUP_ENTRY' ? 409 : 500).json({ error: error.code === 'ER_DUP_ENTRY' ? 'Já existe uma conta com esse e-mail.' : 'Falha ao criar a conta.' });
   }
 });
 
-app.post('/api/auth/register/request-code', async (req, res) => {
-  res.status(410).json({ error: 'O cadastro agora usa um aplicativo autenticador. Inicie a configuração novamente.' });
+app.post('/api/auth/register/start', (req, res) => {
+  res.status(410).json({ error: 'O cadastro em etapas foi desativado. Envie os dados para /api/auth/register.' });
 });
 
-app.post('/api/auth/register/verify-code', async (req, res) => {
-  res.status(410).json({ error: 'O cadastro agora usa um aplicativo autenticador. Inicie a configuração novamente.' });
+app.post('/api/auth/register/complete', (req, res) => {
+  res.status(410).json({ error: 'O cadastro em etapas foi desativado. Envie os dados para /api/auth/register.' });
+});
+
+app.post('/api/auth/register/request-code', (req, res) => {
+  res.status(410).json({ error: 'O cadastro em etapas foi desativado. Envie os dados para /api/auth/register.' });
+});
+
+app.post('/api/auth/register/verify-code', (req, res) => {
+  res.status(410).json({ error: 'O cadastro em etapas foi desativado. Envie os dados para /api/auth/register.' });
 });
 
 app.post('/api/auth/login', async (req, res) => {
   try {
     const email = String(req.body.email || '').trim().toLowerCase();
-    const [rows] = await pool.execute('SELECT idUsuario,nome,email,senha,role,ativo,totp_secret FROM usuarios WHERE LOWER(email)=? LIMIT 1', [email]);
+    const [rows] = await pool.execute('SELECT idUsuario,nome,email,senha,role,ativo,auth_version FROM usuarios WHERE LOWER(email)=? LIMIT 1', [email]);
     const row = rows[0];
     if (!row || !row.ativo || !verifyPassword(req.body.senha, row.senha)) return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
     const user = { idUsuario: row.idUsuario, email: row.email, role: row.role, nome: row.nome };
-    const setupRequired = !row.totp_secret;
-    const secret = setupRequired ? speakeasy.generateSecret({ length: 20 }).base32 : null;
-    const challengeToken = jwt.sign({
-      purpose: 'totp-login',
-      idUsuario: user.idUsuario,
-      setupRequired,
-      setupSecret: secret ? encryptTotpSecret(secret) : null
-    }, jwtSecret, { expiresIn: '10m' });
-    const response = { user, challengeToken, setupRequired, expiresInSeconds: 600 };
-    if (secret) Object.assign(response, await authenticatorSetup(secret, email));
-    res.json(response);
+    res.json({ user, token: tokenFor(user, row.auth_version) });
   } catch (error) {
     console.error('Falha ao iniciar login:', error);
     res.status(500).json({ error: 'Falha ao entrar.' });
   }
 });
 
-app.post('/api/auth/login/verify-totp', async (req, res) => {
-  const challengeToken = String(req.body.challengeToken || '');
-  const code = String(req.body.codigo || '').trim();
-  if (!challengeToken || !/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Informe o código de 6 dígitos do aplicativo autenticador.' });
-
-  let challenge;
-  try {
-    challenge = jwt.verify(challengeToken, jwtSecret);
-    if (challenge.purpose !== 'totp-login') throw new Error('Token purpose mismatch');
-  } catch (_) {
-    return res.status(401).json({ error: 'A etapa de login expirou. Entre novamente com seu e-mail e senha.' });
-  }
-
-  const userId = Number(challenge.idUsuario);
-  let attempt = loginChallengeAttempts.get(userId);
-  if (!attempt || attempt.expiresAt <= Date.now()) attempt = { count: 0, expiresAt: Date.now() + 10 * 60 * 1000 };
-  if (attempt.count >= 5) {
-    return res.status(429).json({ error: 'Limite de tentativas atingido. Aguarde 10 minutos antes de iniciar outro login.' });
-  }
-  attempt.count += 1;
-  loginChallengeAttempts.set(userId, attempt);
-  if (loginChallengeAttempts.size > 1000) {
-    for (const [token, value] of loginChallengeAttempts) {
-      if (value.expiresAt <= Date.now()) loginChallengeAttempts.delete(token);
-    }
-  }
-
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-    const [rows] = await connection.execute('SELECT idUsuario,nome,email,role,ativo,totp_secret,totp_last_counter FROM usuarios WHERE idUsuario=? FOR UPDATE', [challenge.idUsuario]);
-    const row = rows[0];
-    if (!row || !row.ativo) {
-      await connection.rollback();
-      return res.status(401).json({ error: 'Conta inativa ou não encontrada.' });
-    }
-
-    const setupRequired = Boolean(challenge.setupRequired);
-    if (setupRequired && row.totp_secret) {
-      await connection.rollback();
-      return res.status(409).json({ error: 'O aplicativo autenticador já foi configurado. Entre novamente.' });
-    }
-    if (!setupRequired && !row.totp_secret) {
-      await connection.rollback();
-      return res.status(409).json({ error: 'A configuração do autenticador foi alterada. Entre novamente.' });
-    }
-
-    const encryptedSecret = setupRequired ? challenge.setupSecret : row.totp_secret;
-    const secret = decryptTotpSecret(encryptedSecret);
-    const counter = verifyTotp(secret, code, setupRequired ? null : row.totp_last_counter);
-    if (counter === null) {
-      await connection.rollback();
-      return res.status(400).json({ error: 'Código inválido, expirado ou já utilizado. Confira o relógio do dispositivo e tente novamente.' });
-    }
-
-    if (setupRequired) {
-      await connection.execute('UPDATE usuarios SET totp_secret=?,totp_last_counter=? WHERE idUsuario=? AND totp_secret IS NULL', [encryptedSecret, counter, row.idUsuario]);
-    } else {
-      const [updated] = await connection.execute('UPDATE usuarios SET totp_last_counter=? WHERE idUsuario=? AND (totp_last_counter IS NULL OR totp_last_counter<?)', [counter, row.idUsuario, counter]);
-      if (!updated.affectedRows) {
-        await connection.rollback();
-        return res.status(400).json({ error: 'Esse código já foi utilizado. Aguarde o próximo código do aplicativo.' });
-      }
-    }
-    await connection.commit();
-    loginChallengeAttempts.delete(userId);
-    const user = { idUsuario: row.idUsuario, email: row.email, role: row.role, nome: row.nome };
-    res.json({ user, token: tokenFor(user) });
-  } catch (error) {
-    await connection.rollback().catch(rollbackError => console.error('Falha ao desfazer verificação do autenticador:', rollbackError));
-    console.error('Falha ao verificar código autenticador:', error);
-    res.status(500).json({ error: 'Falha ao verificar o aplicativo autenticador.' });
-  } finally {
-    connection.release();
-  }
+app.post('/api/auth/login/verify-totp', (req, res) => {
+  res.status(410).json({ error: 'A verificação em duas etapas foi desativada. Entre com seu e-mail e senha.' });
 });
 
 app.get('/api/states', async (req, res) => {
@@ -539,7 +321,7 @@ app.get('/api/me/notifications', auth(), async (req, res) => {
       WHERE n.usuario_id=?
       UNION ALL
       SELECT v.idAviso AS id, v.mensagem, NULL AS descricao, NULL AS cidade_id, v.criado_em AS created_at
-      FROM avisos_usuarios v WHERE v.usuario_id=?
+      FROM avisos_usuarios v WHERE v.usuario_id=? AND v.criado_em > DATE_SUB(NOW(), INTERVAL 1 HOUR)
       ORDER BY created_at DESC, id DESC`, [req.user.idUsuario, req.user.idUsuario]);
     res.json(rows);
   } catch (_) { res.status(500).json({ error: 'Falha ao consultar notificações.' }); }

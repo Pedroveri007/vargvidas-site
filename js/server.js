@@ -7,11 +7,23 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const mysql = require('mysql2/promise');
 const multer = require('multer');
+const nodemailer = require('nodemailer');
 
 const app = express();
+const host = process.env.HOST || '0.0.0.0';
 const port = Number(process.env.PORT || 3000);
 const databaseName = process.env.DB_NAME || 'VARGS';
 const jwtSecret = process.env.JWT_SECRET || 'development-secret-change-me';
+const emailLoginChallenges = new Map();
+const mailer = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD
+  ? nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD.replace(/\s/g, '')
+    }
+  })
+  : null;
 const stateNamesByCode = {
   AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia',
   CE: 'Ceará', DF: 'Distrito Federal', ES: 'Espírito Santo', GO: 'Goiás',
@@ -25,13 +37,14 @@ const stateNamesByCode = {
 const uploadDirectory = path.join(__dirname, 'uploads');
 fs.mkdirSync(uploadDirectory, { recursive: true });
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || '127.0.0.1',
   port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: databaseName,
   waitForConnections: true,
-  connectionLimit: 10
+  connectionLimit: 10,
+  charset: 'utf8mb4'
 });
 
 app.use(cors());
@@ -65,6 +78,33 @@ function verifyPassword(password, stored) {
   if (!salt || !expected) return false;
   const actual = crypto.scryptSync(password, salt, 64).toString('hex');
   return expected.length === actual.length && crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
+}
+
+function maskEmail(email) {
+  const [localPart, domain] = String(email).split('@');
+  return `${localPart.slice(0, 1)}${'*'.repeat(Math.max(3, Math.min(localPart.length - 1, 8)))}@${domain}`;
+}
+
+function hashLoginCode(challengeId, code) {
+  return crypto.createHash('sha256').update(`${challengeId}:${code}`).digest('hex');
+}
+
+async function sendLoginCode(email, code) {
+  if (!mailer) throw new Error('O envio de códigos por Gmail não está configurado.');
+  await mailer.sendMail({
+    from: `VARG <${process.env.GMAIL_USER}>`,
+    to: email,
+    subject: 'Seu código de acesso VARG',
+    text: `Seu código de acesso VARG é ${code}. Ele expira em 10 minutos. Não compartilhe este código.`,
+    html: `<p>Use este código para entrar no VARG:</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>O código expira em 10 minutos. Não o compartilhe.</p>`
+  });
+}
+
+function pruneEmailLoginChallenges() {
+  const now = Date.now();
+  for (const [challengeId, challenge] of emailLoginChallenges) {
+    if (challenge.expiresAt <= now) emailLoginChallenges.delete(challengeId);
+  }
 }
 
 function tokenFor(user, authVersion = 1) {
@@ -198,13 +238,14 @@ async function notifyCaseOwner(connection, caseId, message) {
 }
 
 async function start() {
+  if (!mailer) console.warn('Gmail SMTP não configurado: contas com verificação por e-mail não poderão concluir o login.');
   try {
     await pool.query('SELECT 1');
-    console.log(`Banco de dados conectado: ${databaseName}`);
+    console.log(`Banco de dados conectado: ${databaseName} em ${process.env.DB_HOST || '127.0.0.1'}:${process.env.DB_PORT || 3306}`);
   } catch (error) {
-    console.error(`Banco de dados indisponível: ${error.code || 'erro de conexão'}`);
+    console.error(`Banco de dados indisponível: ${error.code || 'erro de conexão'} (${process.env.DB_HOST || '127.0.0.1'}:${process.env.DB_PORT || 3306})`);
   }
-  app.listen(port, () => console.log(`VARG disponível em http://localhost:${port}`));
+  app.listen(port, host, () => console.log(`VARG disponível em http://localhost:${port} (ou http://<IP-da-máquina>:${port})`));
 }
 
 app.get('/api/health', async (req, res) => {
@@ -254,9 +295,30 @@ app.post('/api/auth/register/verify-code', (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const email = String(req.body.email || '').trim().toLowerCase();
-    const [rows] = await pool.execute('SELECT idUsuario,nome,email,senha,role,ativo,auth_version FROM usuarios WHERE LOWER(email)=? LIMIT 1', [email]);
+    const [rows] = await pool.execute('SELECT idUsuario,nome,email,senha,role,ativo,auth_version,email_2fa_enabled FROM usuarios WHERE LOWER(email)=? LIMIT 1', [email]);
     const row = rows[0];
     if (!row || !row.ativo || !verifyPassword(req.body.senha, row.senha)) return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
+    if (row.email_2fa_enabled) {
+      if (!mailer) return res.status(503).json({ error: 'O envio do código por e-mail não está configurado. Contate o administrador.' });
+      pruneEmailLoginChallenges();
+      const challengeId = crypto.randomUUID();
+      const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+      try {
+        await sendLoginCode(row.email, code);
+      } catch (error) {
+        console.error('Falha ao enviar código de acesso:', error.message);
+        return res.status(503).json({ error: 'Não foi possível enviar o código para seu e-mail. Tente novamente.' });
+      }
+      emailLoginChallenges.set(challengeId, {
+        codeHash: hashLoginCode(challengeId, code),
+        attempts: 0,
+        sends: 1,
+        resendAt: Date.now() + 60 * 1000,
+        expiresAt: Date.now() + 10 * 60 * 1000
+      });
+      const challengeToken = jwt.sign({ idUsuario: row.idUsuario, challengeId, purpose: 'login-email' }, jwtSecret, { expiresIn: '30m' });
+      return res.json({ requiresEmailCode: true, challengeToken, maskedEmail: maskEmail(row.email), resendAfterSeconds: 60 });
+    }
     const user = { idUsuario: row.idUsuario, email: row.email, role: row.role, nome: row.nome };
     res.json({ user, token: tokenFor(user, row.auth_version) });
   } catch (error) {
@@ -265,8 +327,178 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login/verify-totp', (req, res) => {
-  res.status(410).json({ error: 'A verificação em duas etapas foi desativada. Entre com seu e-mail e senha.' });
+app.post('/api/auth/login/verify-email-code', async (req, res) => {
+  let challenge;
+  try {
+    challenge = jwt.verify(String(req.body.challengeToken || ''), jwtSecret);
+  } catch (_) {
+    return res.status(401).json({ error: 'Desafio expirado. Entre novamente.' });
+  }
+  if (challenge.purpose !== 'login-email' || !challenge.challengeId) return res.status(401).json({ error: 'Desafio inválido.' });
+
+  const attempt = emailLoginChallenges.get(challenge.challengeId);
+  if (!attempt || attempt.expiresAt <= Date.now()) {
+    emailLoginChallenges.delete(challenge.challengeId);
+    return res.status(401).json({ error: 'Desafio expirado. Entre novamente.' });
+  }
+  if (attempt.attempts >= 5) {
+    emailLoginChallenges.delete(challenge.challengeId);
+    return res.status(429).json({ error: 'Limite de tentativas atingido. Entre novamente.' });
+  }
+  attempt.attempts += 1;
+
+  try {
+    const [rows] = await pool.execute(`SELECT idUsuario,nome,email,role,ativo,auth_version,email_2fa_enabled
+      FROM usuarios WHERE idUsuario=? LIMIT 1`, [challenge.idUsuario]);
+    const row = rows[0];
+    if (!row || !row.ativo || !row.email_2fa_enabled) {
+      emailLoginChallenges.delete(challenge.challengeId);
+      return res.status(401).json({ error: 'Código inválido ou expirado.' });
+    }
+
+    const suppliedHash = hashLoginCode(challenge.challengeId, String(req.body.code || ''));
+    const expectedHash = Buffer.from(attempt.codeHash, 'hex');
+    const actualHash = Buffer.from(suppliedHash, 'hex');
+    if (!/^\d{6}$/.test(String(req.body.code || '')) || !crypto.timingSafeEqual(expectedHash, actualHash)) {
+      return res.status(401).json({ error: 'Código inválido ou expirado.' });
+    }
+
+    emailLoginChallenges.delete(challenge.challengeId);
+    const user = { idUsuario: row.idUsuario, email: row.email, role: row.role, nome: row.nome };
+    res.json({ user, token: tokenFor(user, row.auth_version) });
+  } catch (error) {
+    console.error('Falha ao verificar código de e-mail:', error);
+    res.status(500).json({ error: 'Falha ao verificar o código.' });
+  }
+});
+
+app.post('/api/auth/login/resend-email-code', async (req, res) => {
+  let challenge;
+  try {
+    challenge = jwt.verify(String(req.body.challengeToken || ''), jwtSecret);
+  } catch (_) {
+    return res.status(401).json({ error: 'Desafio expirado. Entre novamente.' });
+  }
+  if (!['login-email', 'enable-email-2fa'].includes(challenge.purpose) || !challenge.challengeId) return res.status(401).json({ error: 'Desafio inválido.' });
+
+  const attempt = emailLoginChallenges.get(challenge.challengeId);
+  if (!attempt || attempt.expiresAt <= Date.now()) {
+    emailLoginChallenges.delete(challenge.challengeId);
+    return res.status(401).json({ error: 'Desafio expirado. Entre novamente.' });
+  }
+  if (Date.now() < attempt.resendAt) {
+    return res.status(429).json({ error: 'Aguarde antes de pedir outro código.', resendAfterSeconds: Math.ceil((attempt.resendAt - Date.now()) / 1000) });
+  }
+  if (attempt.sends >= 3) {
+    emailLoginChallenges.delete(challenge.challengeId);
+    return res.status(429).json({ error: 'Limite de reenvios atingido. Entre novamente.' });
+  }
+
+  try {
+    const [rows] = await pool.execute('SELECT email,ativo,email_2fa_enabled FROM usuarios WHERE idUsuario=? LIMIT 1', [challenge.idUsuario]);
+    const row = rows[0];
+    const accountStateMatches = challenge.purpose === 'login-email' ? row?.email_2fa_enabled : !row?.email_2fa_enabled;
+    if (!row || !row.ativo || !accountStateMatches) {
+      emailLoginChallenges.delete(challenge.challengeId);
+      return res.status(401).json({ error: 'Desafio inválido.' });
+    }
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    attempt.resendAt = Date.now() + 60 * 1000;
+    attempt.sends += 1;
+    await sendLoginCode(row.email, code);
+    attempt.codeHash = hashLoginCode(challenge.challengeId, code);
+    attempt.attempts = 0;
+    attempt.expiresAt = Date.now() + 10 * 60 * 1000;
+    res.json({ sent: true, maskedEmail: maskEmail(row.email), resendAfterSeconds: 60 });
+  } catch (error) {
+    console.error('Falha ao reenviar código de acesso:', error.message);
+    res.status(503).json({ error: 'Não foi possível reenviar o código para seu e-mail.' });
+  }
+});
+
+app.get('/api/me/security', auth(), async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT email,email_2fa_enabled FROM usuarios WHERE idUsuario=? LIMIT 1', [req.user.idUsuario]);
+    if (!rows[0]) return res.status(404).json({ error: 'Conta não encontrada.' });
+    res.json({ emailTwoFactorEnabled: Boolean(rows[0].email_2fa_enabled), maskedEmail: maskEmail(rows[0].email) });
+  } catch (_) { res.status(500).json({ error: 'Falha ao consultar as configurações de segurança.' }); }
+});
+
+app.post('/api/me/security/enable-email-code', auth(), async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT senha,email,email_2fa_enabled FROM usuarios WHERE idUsuario=? LIMIT 1', [req.user.idUsuario]);
+    if (!rows[0]) return res.status(404).json({ error: 'Conta não encontrada.' });
+    if (!verifyPassword(req.body.senha, rows[0].senha)) return res.status(401).json({ error: 'Senha incorreta.' });
+    if (rows[0].email_2fa_enabled) return res.status(409).json({ error: 'A verificação por e-mail já está ativa.' });
+    if (!mailer) return res.status(503).json({ error: 'O envio do código por e-mail não está configurado. Contate o administrador.' });
+
+    const challengeId = crypto.randomUUID();
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    await sendLoginCode(rows[0].email, code);
+    emailLoginChallenges.set(challengeId, {
+      codeHash: hashLoginCode(challengeId, code),
+      attempts: 0,
+      sends: 1,
+      resendAt: Date.now() + 60 * 1000,
+      expiresAt: Date.now() + 10 * 60 * 1000
+    });
+    const setupToken = jwt.sign({ idUsuario: req.user.idUsuario, challengeId, purpose: 'enable-email-2fa' }, jwtSecret, { expiresIn: '30m' });
+    res.json({ setupToken, maskedEmail: maskEmail(rows[0].email), resendAfterSeconds: 60 });
+  } catch (error) {
+    console.error('Falha ao ativar verificação por e-mail:', error);
+    res.status(503).json({ error: 'Não foi possível enviar o código para seu e-mail.' });
+  }
+});
+
+app.post('/api/me/security/confirm-email-code', auth(), async (req, res) => {
+  let setup;
+  try {
+    setup = jwt.verify(String(req.body.setupToken || ''), jwtSecret);
+  } catch (_) {
+    return res.status(401).json({ error: 'Desafio expirado. Solicite um novo código.' });
+  }
+  if (setup.purpose !== 'enable-email-2fa' || Number(setup.idUsuario) !== Number(req.user.idUsuario)) {
+    return res.status(401).json({ error: 'Desafio inválido.' });
+  }
+
+  const attempt = emailLoginChallenges.get(setup.challengeId);
+  if (!attempt || attempt.expiresAt <= Date.now()) {
+    emailLoginChallenges.delete(setup.challengeId);
+    return res.status(401).json({ error: 'Código expirado. Solicite um novo.' });
+  }
+  if (attempt.attempts >= 5) {
+    emailLoginChallenges.delete(setup.challengeId);
+    return res.status(429).json({ error: 'Limite de tentativas atingido. Inicie a ativação novamente.' });
+  }
+  attempt.attempts += 1;
+
+  const suppliedCode = String(req.body.code || '');
+  const matches = /^\d{6}$/.test(suppliedCode)
+    && crypto.timingSafeEqual(Buffer.from(attempt.codeHash, 'hex'), Buffer.from(hashLoginCode(setup.challengeId, suppliedCode), 'hex'));
+  if (!matches) return res.status(401).json({ error: 'Código inválido ou expirado.' });
+
+  try {
+    const [updated] = await pool.execute('UPDATE usuarios SET email_2fa_enabled=1 WHERE idUsuario=? AND email_2fa_enabled=0', [req.user.idUsuario]);
+    if (updated.affectedRows !== 1) return res.status(409).json({ error: 'A verificação por e-mail já está ativa.' });
+    emailLoginChallenges.delete(setup.challengeId);
+    res.json({ emailTwoFactorEnabled: true });
+  } catch (error) {
+    console.error('Falha ao confirmar e-mail para 2FA:', error);
+    res.status(500).json({ error: 'Não foi possível ativar a verificação por e-mail.' });
+  }
+});
+
+app.post('/api/me/security/disable-email-code', auth(), async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT senha,email_2fa_enabled FROM usuarios WHERE idUsuario=? LIMIT 1', [req.user.idUsuario]);
+    if (!rows[0] || !rows[0].email_2fa_enabled) return res.status(400).json({ error: 'A verificação por e-mail não está ativa.' });
+    if (!verifyPassword(req.body.senha, rows[0].senha)) return res.status(401).json({ error: 'Senha incorreta.' });
+    await pool.execute('UPDATE usuarios SET email_2fa_enabled=0 WHERE idUsuario=?', [req.user.idUsuario]);
+    res.json({ emailTwoFactorEnabled: false });
+  } catch (error) {
+    console.error('Falha ao desativar verificação por e-mail:', error);
+    res.status(500).json({ error: 'Não foi possível desativar a verificação por e-mail.' });
+  }
 });
 
 app.get('/api/states', async (req, res) => {

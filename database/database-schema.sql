@@ -298,6 +298,7 @@ CREATE TABLE `usuarios` (
   `telefone` varchar(20) DEFAULT NULL,
   `role` enum('USUARIO','ADMIN') NOT NULL DEFAULT 'USUARIO',
   `ativo` tinyint(1) NOT NULL DEFAULT 1,
+  `email_2fa_enabled` tinyint(1) NOT NULL DEFAULT 0,
   `totp_secret` varchar(255) DEFAULT NULL,
   `totp_last_counter` bigint(20) unsigned DEFAULT NULL,
   `auth_version` int(10) unsigned NOT NULL DEFAULT 1,

@@ -46,6 +46,15 @@
         <button class="btn btn-primary btn-block" type="submit">Entrar</button>
       </form>
 
+      <form id="form-login-email-code" style="display:none">
+        <h3>Verificação em duas etapas</h3>
+        <p class="helper" id="login-email-code-destination"></p>
+        <div class="field"><label for="login-email-code">Código enviado por e-mail</label><input required id="login-email-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></div>
+        <button class="btn btn-primary btn-block" type="submit">Verificar</button>
+        <button class="btn btn-outline-azul btn-block" id="resend-login-email-code" type="button" disabled>Reenviar código</button>
+        <button class="btn btn-outline-azul btn-block" id="back-to-login" type="button">Voltar</button>
+      </form>
+
       <form id="form-register" style="display:none">
         <div class="field"><label>Nome completo</label><input required id="reg-name"></div>
         <div class="field"><label>E-mail</label><input required type="email" id="reg-email"></div>
@@ -73,6 +82,26 @@
     document.getElementById("form-register").style.display = t==="register" ? "block":"none";
   }
   showTab(authParams.get("tab") === "register" ? "register" : "login");
+  let loginChallengeToken = null;
+  let loginResendTimer = null;
+
+  function startLoginResendCountdown(seconds) {
+    const button = document.getElementById("resend-login-email-code");
+    let remaining = seconds;
+    clearInterval(loginResendTimer);
+    button.disabled = true;
+    button.textContent = `Reenviar em ${remaining}s`;
+    loginResendTimer = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(loginResendTimer);
+        button.disabled = false;
+        button.textContent = "Reenviar código";
+      } else {
+        button.textContent = `Reenviar em ${remaining}s`;
+      }
+    }, 1000);
+  }
 
   function registrationData() {
     return {
@@ -88,7 +117,16 @@
     const button = this.querySelector('button[type="submit"]');
     button.disabled = true;
     try {
-      await DB.login(document.getElementById("login-email").value, document.getElementById("login-password").value);
+      const result = await DB.login(document.getElementById("login-email").value, document.getElementById("login-password").value);
+      if (result.requiresEmailCode) {
+        loginChallengeToken = result.challengeToken;
+        document.getElementById("login-email-code-destination").textContent = `Enviamos um código para ${result.maskedEmail}. Ele expira em 10 minutos.`;
+        document.getElementById("form-login").style.display = "none";
+        document.getElementById("form-login-email-code").style.display = "block";
+        document.getElementById("login-email-code").focus();
+        startLoginResendCountdown(result.resendAfterSeconds);
+        return;
+      }
       toast("Login realizado.");
       setTimeout(()=> location.href="painel.html", 800);
     } catch (error) {
@@ -96,6 +134,38 @@
     } finally {
       button.disabled = false;
     }
+  });
+  document.getElementById("form-login-email-code").addEventListener("submit", async function(e){
+    e.preventDefault();
+    const button = this.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await DB.verifyLoginEmailCode(loginChallengeToken, document.getElementById("login-email-code").value);
+      toast("Login realizado.");
+      setTimeout(()=> location.href="painel.html", 800);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+  document.getElementById("resend-login-email-code").addEventListener("click", async function(){
+    this.disabled = true;
+    try {
+      const result = await DB.resendEmailCode(loginChallengeToken);
+      document.getElementById("login-email-code-destination").textContent = `Enviamos outro código para ${result.maskedEmail}.`;
+      startLoginResendCountdown(result.resendAfterSeconds);
+    } catch (error) {
+      toast(error.message);
+      startLoginResendCountdown(60);
+    }
+  });
+  document.getElementById("back-to-login").addEventListener("click", function(){
+    loginChallengeToken = null;
+    clearInterval(loginResendTimer);
+    document.getElementById("login-email-code").value = "";
+    document.getElementById("form-login-email-code").style.display = "none";
+    document.getElementById("form-login").style.display = "block";
   });
   document.getElementById("form-register").addEventListener("submit", async function(e){
     e.preventDefault();

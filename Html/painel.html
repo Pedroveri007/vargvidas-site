@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel da Família — VARG</title>
-<link rel="stylesheet" href="../css/style.css?v=5">
+<link rel="stylesheet" href="../css/style.css?v=6">
 </head>
 <body>
 <header class="site">
@@ -60,6 +60,7 @@
         <div class="stat-card"><div class="num">0</div><div class="lbl">Visualizações totais</div></div>
       </div>
       <div class="info-box" id="notifications-box" style="margin-bottom:24px"><h4>Notificações</h4><p>Carregando...</p></div>
+      <div class="info-box" id="security-box" style="margin-bottom:24px"><h4>Segurança da conta</h4><p>Carregando configurações...</p></div>
       <table>
         <thead><tr><th>Nome</th><th>Protocolo</th><th>Status</th><th>Cadastrado em</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
@@ -82,7 +83,112 @@
           box.innerHTML = `<h4>Notificações</h4><p>Não foi possível carregar os avisos. ${escapeHtml(error.message)}. O painel tentará novamente.</p>`;
         }
       }
+
+      async function loadSecuritySettings() {
+        const box = document.getElementById('security-box');
+        try {
+          const settings = await DB.getSecuritySettings();
+          if (settings.emailTwoFactorEnabled) {
+            box.innerHTML = `<h4>Verificação por e-mail ativa</h4>
+              <p>Enviaremos um código de acesso para ${escapeHtml(settings.maskedEmail)} sempre que você entrar.</p>
+              <form id="email-2fa-disable-form">
+                <div class="field"><label for="email-2fa-disable-password">Senha atual</label><input required type="password" id="email-2fa-disable-password" autocomplete="current-password"></div>
+                <button class="btn btn-outline-azul" type="submit">Desativar verificação por e-mail</button>
+              </form>`;
+            box.querySelector('#email-2fa-disable-form').addEventListener('submit', async event => {
+              event.preventDefault();
+              const button = event.currentTarget.querySelector('button[type="submit"]');
+              button.disabled = true;
+              try {
+                await DB.disableEmailTwoFactor(document.getElementById('email-2fa-disable-password').value);
+                toast('Verificação por e-mail desativada.');
+                loadSecuritySettings();
+              } catch (error) {
+                toast(error.message);
+              } finally {
+                button.disabled = false;
+              }
+            });
+            return;
+          }
+
+          box.innerHTML = `<h4>Verificação em duas etapas</h4>
+            <p>Ao entrar, você receberá um código no endereço ${escapeHtml(settings.maskedEmail)}.</p>
+            <form id="email-2fa-enable-form">
+              <div class="field"><label for="email-2fa-enable-password">Confirme sua senha</label><input required type="password" id="email-2fa-enable-password" autocomplete="current-password"></div>
+              <button class="btn btn-primary" type="submit">Ativar código por e-mail</button>
+            </form>`;
+          box.querySelector('#email-2fa-enable-form').addEventListener('submit', async event => {
+            event.preventDefault();
+            const button = event.currentTarget.querySelector('button[type="submit"]');
+            button.disabled = true;
+            try {
+              const setup = await DB.enableEmailTwoFactor(document.getElementById('email-2fa-enable-password').value);
+              box.innerHTML = `<h4>Confirme seu endereço</h4>
+                <p>Enviamos um código para ${escapeHtml(setup.maskedEmail)}. Digite-o para ativar a verificação por e-mail.</p>
+                <form id="email-2fa-confirm-form">
+                  <div class="field"><label for="email-2fa-confirm-code">Código de 6 dígitos</label><input required id="email-2fa-confirm-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></div>
+                  <button class="btn btn-primary" type="submit">Confirmar e ativar</button>
+                  <button class="btn btn-outline-azul" id="email-2fa-resend" type="button" disabled>Reenviar código</button>
+                </form>`;
+              const confirmationForm = box.querySelector('#email-2fa-confirm-form');
+              const resendButton = box.querySelector('#email-2fa-resend');
+              let resendTimer;
+              function startResendCountdown(seconds) {
+                let remaining = seconds;
+                clearInterval(resendTimer);
+                resendButton.disabled = true;
+                resendButton.textContent = `Reenviar em ${remaining}s`;
+                resendTimer = setInterval(() => {
+                  remaining -= 1;
+                  if (remaining <= 0) {
+                    clearInterval(resendTimer);
+                    resendButton.disabled = false;
+                    resendButton.textContent = 'Reenviar código';
+                  } else {
+                    resendButton.textContent = `Reenviar em ${remaining}s`;
+                  }
+                }, 1000);
+              }
+              startResendCountdown(setup.resendAfterSeconds);
+              confirmationForm.addEventListener('submit', async submitEvent => {
+                submitEvent.preventDefault();
+                const confirmButton = submitEvent.currentTarget.querySelector('button[type="submit"]');
+                confirmButton.disabled = true;
+                try {
+                  await DB.confirmEmailTwoFactor(setup.setupToken, document.getElementById('email-2fa-confirm-code').value);
+                  clearInterval(resendTimer);
+                  toast('Verificação por e-mail ativada.');
+                  loadSecuritySettings();
+                } catch (error) {
+                  toast(error.message);
+                } finally {
+                  confirmButton.disabled = false;
+                }
+              });
+              resendButton.addEventListener('click', async () => {
+                resendButton.disabled = true;
+                try {
+                  await DB.resendEmailCode(setup.setupToken);
+                  startResendCountdown(60);
+                  toast('Código reenviado.');
+                } catch (error) {
+                  toast(error.message);
+                  startResendCountdown(60);
+                }
+              });
+            } catch (error) {
+              toast(error.message);
+              button.disabled = false;
+            }
+          });
+        } catch (error) {
+          box.innerHTML = `<h4>Segurança da conta</h4><p>${escapeHtml(error.message)}</p>`;
+        }
+      }
+
       loadNotifications();
+      loadSecuritySettings();
       const notificationsTimer = setInterval(() => {
         if (!document.hidden) loadNotifications();
       }, 15000);

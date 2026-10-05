@@ -87,6 +87,11 @@ const DB = {
   addContactMessage: data => apiRequest('/contact', { method: 'POST', body: JSON.stringify(data) }),
   getStates: () => apiRequest('/states'),
   getCities: state => apiRequest(`/cities${state ? `?state=${encodeURIComponent(state)}` : ''}`),
+  getSecuritySettings: () => apiRequest('/me/security'),
+  enableEmailTwoFactor: senha => apiRequest('/me/security/enable-email-code', { method: 'POST', body: JSON.stringify({ senha }) }),
+  confirmEmailTwoFactor: (setupToken, code) => apiRequest('/me/security/confirm-email-code', { method: 'POST', body: JSON.stringify({ setupToken, code }) }),
+  disableEmailTwoFactor: senha => apiRequest('/me/security/disable-email-code', { method: 'POST', body: JSON.stringify({ senha }) }),
+  resendEmailCode: challengeToken => apiRequest('/auth/login/resend-email-code', { method: 'POST', body: JSON.stringify({ challengeToken }) }),
   stats: () => apiRequest('/stats'),
   adminCases: filters => apiRequest(`/admin/cases?${new URLSearchParams(filters || {})}`),
   adminCaseById: id => apiRequest(`/admin/cases/${encodeURIComponent(id)}`),
@@ -107,6 +112,14 @@ const DB = {
   requestFound: id => apiRequest(`/cases/${encodeURIComponent(id)}/found-request`, { method: 'POST' }),
   async login(email, senha) {
     const result = await apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ email, senha }) });
+    if (result.token) {
+      localStorage.setItem('varg_token', result.token);
+      localStorage.setItem('varg_session', JSON.stringify(result.user));
+    }
+    return result;
+  },
+  async verifyLoginEmailCode(challengeToken, code) {
+    const result = await apiRequest('/auth/login/verify-email-code', { method: 'POST', body: JSON.stringify({ challengeToken, code }) });
     localStorage.setItem('varg_token', result.token);
     localStorage.setItem('varg_session', JSON.stringify(result.user));
     return result.user;

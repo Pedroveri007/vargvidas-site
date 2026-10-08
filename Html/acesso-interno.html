@@ -31,14 +31,6 @@
         <div class="field"><label for="admin-password">Senha</label><input required type="password" id="admin-password" autocomplete="current-password"></div>
         <button class="btn btn-primary btn-block" type="submit">Entrar na triagem</button>
       </form>
-      <form id="admin-email-code-form" style="display:none">
-        <h3>Verificação em duas etapas</h3>
-        <p class="helper" id="admin-email-code-destination"></p>
-        <div class="field"><label for="admin-email-code">Código enviado por e-mail</label><input required id="admin-email-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></div>
-        <button class="btn btn-primary btn-block" type="submit">Verificar</button>
-        <button class="btn btn-outline-azul btn-block" id="admin-resend-email-code" type="button" disabled>Reenviar código</button>
-        <button class="btn btn-outline-azul btn-block" id="admin-back-to-login" type="button">Voltar</button>
-      </form>
       <p id="admin-login-error" class="helper" role="alert" hidden></p>
       <p class="helper" style="text-align:center;margin-top:14px">Acesso restrito a contas administrativas autorizadas.</p>
     </div>
@@ -51,27 +43,6 @@
 
 <script src="../js/app.js"></script>
 <script>
-  let adminLoginChallengeToken = null;
-  let adminResendTimer = null;
-
-  function startAdminResendCountdown(seconds) {
-    const button = document.getElementById('admin-resend-email-code');
-    let remaining = seconds;
-    clearInterval(adminResendTimer);
-    button.disabled = true;
-    button.textContent = `Reenviar em ${remaining}s`;
-    adminResendTimer = setInterval(() => {
-      remaining -= 1;
-      if (remaining <= 0) {
-        clearInterval(adminResendTimer);
-        button.disabled = false;
-        button.textContent = 'Reenviar código';
-      } else {
-        button.textContent = `Reenviar em ${remaining}s`;
-      }
-    }, 1000);
-  }
-
   document.getElementById('admin-login-form').addEventListener('submit', async function(event) {
     event.preventDefault();
     const button = this.querySelector('button[type="submit"]');
@@ -83,15 +54,6 @@
         document.getElementById('admin-email').value,
         document.getElementById('admin-password').value
       );
-      if (result.requiresEmailCode) {
-        adminLoginChallengeToken = result.challengeToken;
-        document.getElementById('admin-email-code-destination').textContent = `Enviamos um código para ${result.maskedEmail}. Ele expira em 10 minutos.`;
-        this.style.display = 'none';
-        document.getElementById('admin-email-code-form').style.display = 'block';
-        document.getElementById('admin-email-code').focus();
-        startAdminResendCountdown(result.resendAfterSeconds);
-        return;
-      }
       const user = result.user;
       if (user.role !== 'ADMIN') {
         DB.logout();
@@ -104,45 +66,6 @@
     } finally {
       button.disabled = false;
     }
-  });
-  document.getElementById('admin-email-code-form').addEventListener('submit', async function(event) {
-    event.preventDefault();
-    const button = this.querySelector('button[type="submit"]');
-    const errorMessage = document.getElementById('admin-login-error');
-    button.disabled = true;
-    errorMessage.hidden = true;
-    try {
-      const user = await DB.verifyLoginEmailCode(adminLoginChallengeToken, document.getElementById('admin-email-code').value);
-      if (user.role !== 'ADMIN') {
-        DB.logout();
-        throw new Error('Esta conta não tem autorização para acessar a triagem administrativa.');
-      }
-      location.href = 'admin.html';
-    } catch (error) {
-      errorMessage.textContent = error.message;
-      errorMessage.hidden = false;
-    } finally {
-      button.disabled = false;
-    }
-  });
-  document.getElementById('admin-resend-email-code').addEventListener('click', async function() {
-    this.disabled = true;
-    try {
-      const result = await DB.resendEmailCode(adminLoginChallengeToken);
-      document.getElementById('admin-email-code-destination').textContent = `Enviamos outro código para ${result.maskedEmail}.`;
-      startAdminResendCountdown(result.resendAfterSeconds);
-    } catch (error) {
-      document.getElementById('admin-login-error').textContent = error.message;
-      document.getElementById('admin-login-error').hidden = false;
-      startAdminResendCountdown(60);
-    }
-  });
-  document.getElementById('admin-back-to-login').addEventListener('click', function() {
-    adminLoginChallengeToken = null;
-    clearInterval(adminResendTimer);
-    document.getElementById('admin-email-code').value = '';
-    document.getElementById('admin-email-code-form').style.display = 'none';
-    document.getElementById('admin-login-form').style.display = 'block';
   });
 </script>
 </body>

@@ -11,7 +11,7 @@
   <div class="nav-wrap">
     <a href="index.html" class="brand">
       <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
-      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+      <div class="brand-text"><strong>VARG</strong><span>Conectando pessoas. Promovendo reencontros</span></div>
     </a>
     <nav class="main-nav" id="main-menu">
       <a href="index.html">Início</a>
@@ -58,9 +58,9 @@
       <div class="form-grid">
         <div class="field full"><label>Descrição do que você observou *</label><textarea required name="description" rows="4" placeholder="Descreva a aparência, comportamento e qualquer detalhe relevante"></textarea></div>
         <div class="field"><label>Data do avistamento</label><input type="date" name="sighting_date"></div>
-        <div class="field"><label>Horário aproximado</label><input name="sighting_time" placeholder="Ex: 18h30"></div>
-        <div class="field"><label>Cidade</label><input name="city"></div>
-        <div class="field"><label>Estado</label><select name="state"><option value="">UF</option></select></div>
+        <div class="field"><label>Horário aproximado</label><input type="time" name="sighting_time"></div>
+        <div class="field"><label>Cidade *</label><input required name="city"></div>
+        <div class="field"><label>Estado *</label><select required name="state"><option value="">UF</option></select></div>
         <div class="field full"><label>Local (endereço, ponto de referência)</label><input name="location"></div>
       </div>
 
@@ -79,7 +79,7 @@
 </section>
 
 <footer class="site">
-  <div class="container footer-bottom"><span>© 2026 VARG — Vidas em Alerta para Reencontro e Gestão.</span></div>
+  <div class="container footer-bottom"><span>© 2026 VARG — Conectando pessoas. Promovendo reencontros.</span></div>
 </footer>
 
 <script src="../js/app.js"></script>

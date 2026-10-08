@@ -168,6 +168,7 @@ function publicCase(row) {
     is_public: Boolean(row.is_public),
     views: 0,
     photo_url: row.foto_url || '',
+    public_contact_phone: row.mostrar_telefone ? row.telefone_responsavel || '' : '',
     created_at: row.data_registro,
     owner_id: row.usuario_id
   };
@@ -298,27 +299,7 @@ app.post('/api/auth/login', async (req, res) => {
     const [rows] = await pool.execute('SELECT idUsuario,nome,email,senha,role,ativo,auth_version,email_2fa_enabled FROM usuarios WHERE LOWER(email)=? LIMIT 1', [email]);
     const row = rows[0];
     if (!row || !row.ativo || !verifyPassword(req.body.senha, row.senha)) return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
-    if (row.email_2fa_enabled) {
-      if (!mailer) return res.status(503).json({ error: 'O envio do código por e-mail não está configurado. Contate o administrador.' });
-      pruneEmailLoginChallenges();
-      const challengeId = crypto.randomUUID();
-      const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-      try {
-        await sendLoginCode(row.email, code);
-      } catch (error) {
-        console.error('Falha ao enviar código de acesso:', error.message);
-        return res.status(503).json({ error: 'Não foi possível enviar o código para seu e-mail. Tente novamente.' });
-      }
-      emailLoginChallenges.set(challengeId, {
-        codeHash: hashLoginCode(challengeId, code),
-        attempts: 0,
-        sends: 1,
-        resendAt: Date.now() + 60 * 1000,
-        expiresAt: Date.now() + 10 * 60 * 1000
-      });
-      const challengeToken = jwt.sign({ idUsuario: row.idUsuario, challengeId, purpose: 'login-email' }, jwtSecret, { expiresIn: '30m' });
-      return res.json({ requiresEmailCode: true, challengeToken, maskedEmail: maskEmail(row.email), resendAfterSeconds: 60 });
-    }
+
     const user = { idUsuario: row.idUsuario, email: row.email, role: row.role, nome: row.nome };
     res.json({ user, token: tokenFor(user, row.auth_version) });
   } catch (error) {
@@ -542,7 +523,15 @@ app.get('/api/cases/:id', auth(false), async (req, res) => {
 app.get('/api/me/cases', auth(), async (req, res) => {
   try {
     const [rows] = await pool.execute(`${caseQuery} WHERE d.usuario_id=? AND d.status<>'EXCLUIDO' ORDER BY d.idDesaparecidos DESC`, [req.user.idUsuario]);
-    res.json(rows.map(publicCase));
+    res.json(rows.map(row => ({
+      ...publicCase(row),
+      birth_date: row.data_nascimento ? new Date(row.data_nascimento).toISOString().slice(0, 10) : '',
+      family_contact_name: row.nome_responsavel || '',
+      family_contact_phone: row.telefone_responsavel || '',
+      family_contact_email: row.email_responsavel || '',
+      police_report: row.numero_bo || '',
+      show_contact_phone: Boolean(row.mostrar_telefone)
+    })));
   } catch (_) { res.status(500).json({ error: 'Falha ao consultar seus casos.' }); }
 });
 
@@ -557,6 +546,24 @@ app.get('/api/me/notifications', auth(), async (req, res) => {
       ORDER BY created_at DESC, id DESC`, [req.user.idUsuario, req.user.idUsuario]);
     res.json(rows);
   } catch (_) { res.status(500).json({ error: 'Falha ao consultar notificações.' }); }
+});
+
+app.get('/api/me/sightings', auth(), async (req, res) => {
+  try {
+    const [rows] = await pool.execute(`SELECT a.idAvistamento AS id, d.nome AS case_name,
+      DATE_FORMAT(a.data_avistamento,'%Y-%m-%d') AS sighting_date,
+      DATE_FORMAT(a.data_avistamento,'%H:%i') AS sighting_time,
+      a.endereco AS location, a.descricao AS description, a.anonimo AS is_anonymous,
+      a.nome_informante AS contact_name, a.telefone_informante AS contact_phone,
+      a.email_informante AS contact_email, c.nome AS city, e.nome AS state
+      FROM avistamentos a
+      JOIN desaparecidos d ON d.idDesaparecidos=a.desaparecidos_id
+      JOIN cidades c ON c.idCidades=a.cidade_id
+      JOIN estados e ON e.idEstados=c.estado_id
+      WHERE d.usuario_id=? AND d.status<>'EXCLUIDO'
+      ORDER BY a.data_avistamento DESC, a.idAvistamento DESC`, [req.user.idUsuario]);
+    res.json(rows.map(row => ({ ...row, is_anonymous: Boolean(row.is_anonymous) })));
+  } catch (error) { console.error('Falha ao consultar avistamentos dos seus casos:', error); res.status(500).json({ error: 'Falha ao consultar avistamentos dos seus casos.' }); }
 });
 
 app.get('/api/cases/:id/history', auth(false), async (req, res) => {
@@ -583,8 +590,8 @@ app.post('/api/cases', auth(), async (req, res) => {
     const [bo] = await connection.execute('INSERT INTO boletim_ocorrencia (numero_bo,data_registro,delegacia,descricao) VALUES (?,?,?,?)', [data.police_report || null, new Date(), data.last_seen_location || null, data.circumstances]);
     const gender = data.gender === 'Masculino' ? 'MASCULINO' : data.gender === 'Feminino' ? 'FEMININO' : 'OUTRO';
     const [result] = await connection.execute(`INSERT INTO desaparecidos
-      (boletim_ocorrencia_id,usuario_id,nome,nome_social,data_nascimento,sexo,altura,peso,cor_olhos,cor_cabelo,cor_pele,ultima_roupa,caracteristicas,descricao,foto_url,data_desaparecimento,cidade_id,status,is_urgent,nome_responsavel,telefone_responsavel,email_responsavel)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'PENDENTE',?,?,?,?)`, [bo.insertId, req.user.idUsuario, data.full_name, data.nickname || null, data.birth_date || null, gender, data.height_cm || null, data.weight_kg || null, data.eye_color || null, data.hair_color || null, data.skin_color || null, data.clothing || null, data.marks || null, data.circumstances, data.foto_url || null, data.disappearance_date, cityId, data.is_urgent ? 1 : 0, data.family_contact_name || null, data.family_contact_phone || null, data.family_contact_email || null]);
+      (boletim_ocorrencia_id,usuario_id,nome,nome_social,data_nascimento,sexo,altura,peso,cor_olhos,cor_cabelo,cor_pele,ultima_roupa,caracteristicas,descricao,foto_url,data_desaparecimento,cidade_id,status,is_urgent,nome_responsavel,telefone_responsavel,mostrar_telefone,email_responsavel)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'PENDENTE',?,?,?,?,?)`, [bo.insertId, req.user.idUsuario, data.full_name, data.nickname || null, data.birth_date || null, gender, data.height_cm || null, data.weight_kg || null, data.eye_color || null, data.hair_color || null, data.skin_color || null, data.clothing || null, data.marks || null, data.circumstances, data.foto_url || null, data.disappearance_date, cityId, data.is_urgent ? 1 : 0, data.family_contact_name || null, data.family_contact_phone || null, data.show_contact_phone ? 1 : 0, data.family_contact_email || null]);
     await insertHistory(connection, result.insertId, req.user.idUsuario, 'CADASTRO', 'Cadastro recebido e aguardando triagem.');
     const [rows] = await connection.execute(`${caseQuery} WHERE d.idDesaparecidos=?`, [result.insertId]);
     await connection.commit();
@@ -596,6 +603,59 @@ app.post('/api/cases', auth(), async (req, res) => {
     }
     console.error('Falha ao registrar caso:', error);
     res.status(500).json({ error: 'Falha ao registrar caso.' });
+  } finally { connection?.release(); }
+});
+
+app.put('/api/me/cases/:id', auth(), async (req, res) => {
+  const data = req.body;
+  if (!data.full_name || !data.disappearance_date || !data.city || !data.state || !data.circumstances || !data.family_contact_name || !data.family_contact_phone) {
+    return res.status(400).json({ error: 'Preencha nome, data, cidade, estado, circunstâncias e contato do responsável.' });
+  }
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    const [ownedCases] = await connection.execute(
+      `SELECT d.boletim_ocorrencia_id FROM desaparecidos d
+       WHERE d.idDesaparecidos=? AND d.usuario_id=? AND d.status<>'EXCLUIDO' LIMIT 1`,
+      [req.params.id, req.user.idUsuario]
+    );
+    if (!ownedCases[0]) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Caso não encontrado na sua conta.' });
+    }
+    const cityId = await getOrCreateCity(connection, data.city, data.state);
+    if (!cityId) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'Estado não encontrado. Selecione um estado válido.' });
+    }
+    const gender = data.gender === 'Masculino' ? 'MASCULINO' : data.gender === 'Feminino' ? 'FEMININO' : 'OUTRO';
+    await connection.execute(
+      'UPDATE boletim_ocorrencia SET numero_bo=?,delegacia=?,descricao=? WHERE idboletim_ocorrencia=?',
+      [data.police_report || null, data.last_seen_location || null, data.circumstances, ownedCases[0].boletim_ocorrencia_id]
+    );
+    await connection.execute(
+      `UPDATE desaparecidos SET nome=?,nome_social=?,data_nascimento=?,sexo=?,altura=?,peso=?,
+        cor_olhos=?,cor_cabelo=?,cor_pele=?,ultima_roupa=?,caracteristicas=?,descricao=?,foto_url=?,
+        data_desaparecimento=?,cidade_id=?,is_urgent=?,nome_responsavel=?,telefone_responsavel=?,mostrar_telefone=?,email_responsavel=?
+       WHERE idDesaparecidos=? AND usuario_id=?`,
+      [data.full_name, data.nickname || null, data.birth_date || null, gender, data.height_cm || null,
+        data.weight_kg || null, data.eye_color || null, data.hair_color || null, data.skin_color || null,
+        data.clothing || null, data.marks || null, data.circumstances, data.foto_url || null,
+        data.disappearance_date, cityId, data.is_urgent ? 1 : 0, data.family_contact_name,
+        data.family_contact_phone, data.show_contact_phone ? 1 : 0, data.family_contact_email || null,
+        req.params.id, req.user.idUsuario]
+    );
+    await insertHistory(connection, req.params.id, req.user.idUsuario, 'ATUALIZACAO', 'Dados do caso atualizados pela família.');
+    await connection.commit();
+    res.json({ ok: true });
+  } catch (error) {
+    if (connection) {
+      try { await connection.rollback(); }
+      catch (rollbackError) { console.error('Falha ao desfazer atualização do caso:', rollbackError); }
+    }
+    console.error('Falha ao atualizar caso:', error);
+    res.status(500).json({ error: 'Falha ao atualizar caso.' });
   } finally { connection?.release(); }
 });
 
@@ -618,7 +678,20 @@ app.post('/api/sightings', auth(), async (req, res) => {
     }
     const cityId = await getOrCreateCity(pool, data.city, data.state);
     if (!cityId) return res.status(400).json({ error: 'Estado não encontrado. Selecione um estado válido.' });
-    const [result] = await pool.execute('INSERT INTO avistamentos (desaparecidos_id,usuario_id,cidade_id,endereco,data_avistamento,descricao) VALUES (?,?,?,?,?,?)', [caseId, req.user.idUsuario, cityId, data.location || null, data.sighting_date || new Date(), String(data.description).trim()]);
+    const isAnonymous = Boolean(data.is_anonymous);
+    const sightingDate = data.sighting_date
+      ? `${data.sighting_date} ${data.sighting_time || '00:00'}:00`
+      : new Date();
+    const [result] = await pool.execute(
+      `INSERT INTO avistamentos
+        (desaparecidos_id,usuario_id,cidade_id,endereco,data_avistamento,descricao,nome_informante,telefone_informante,email_informante,anonimo)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [caseId, req.user.idUsuario, cityId, data.location || null, sightingDate, String(data.description).trim(),
+        isAnonymous ? null : String(data.contact_name || '').trim().slice(0, 100) || null,
+        isAnonymous ? null : String(data.contact_phone || '').trim().slice(0, 30) || null,
+        isAnonymous ? null : String(data.contact_email || '').trim().slice(0, 120) || null,
+        isAnonymous ? 1 : 0]
+    );
     res.status(201).json({ id: result.insertId });
   } catch (error) {
     console.error('Falha ao registrar avistamento:', error);

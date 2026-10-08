@@ -11,7 +11,7 @@
   <div class="nav-wrap">
     <a href="index.html" class="brand">
       <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
-      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+      <div class="brand-text"><strong>VARG</strong><span>Conectando pessoas. Promovendo reencontros</span></div>
     </a>
     <nav class="main-nav" id="main-menu">
       <a href="index.html">Início</a>
@@ -64,7 +64,7 @@
     <div>
       <div class="brand" style="margin-bottom:14px">
         <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
-        <div class="brand-text" style="color:#fff"><strong style="color:#fff">VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+        <div class="brand-text" style="color:#fff"><strong style="color:#fff">VARG</strong><span>Conectando pessoas. Promovendo reencontros</span></div>
       </div>
       <p style="font-size:.85rem;max-width:320px">Plataforma nacional de cadastro, divulgação e localização de pessoas desaparecidas.</p>
     </div>
@@ -84,7 +84,7 @@
     </div>
   </div>
   <div class="container footer-bottom">
-    <span>© 2026 VARG — Vidas em Alerta para Reencontro e Gestão.</span>
+    <span>© 2026 VARG — Conectando pessoas. Promovendo reencontros.</span>
     <span>Feito para reunir famílias.</span>
   </div>
 </footer>
@@ -111,6 +111,7 @@
           <h3>${c.full_name}</h3>
           <div class="meta">${c.age} anos · ${c.city}/${c.state}</div>
           <div class="meta">Desde ${fmtDate(c.disappearance_date)}</div>
+          ${c.public_contact_phone ? `<div class="meta">Telefone de contato: ${escapeHtml(c.public_contact_phone)}</div>` : ''}
           <span class="tag ${c.status==='found'?'encontrado':'ativo'}" style="width:fit-content">${statusLabel(c.status)}</span>
           <div class="protocol">${c.protocol}</div>
         </div>

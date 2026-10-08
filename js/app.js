@@ -76,8 +76,10 @@ const DB = {
   getCaseById: id => apiRequest(`/cases/${encodeURIComponent(id)}`),
   getMyCases: () => apiRequest('/me/cases'),
   getNotifications: () => apiRequest('/me/notifications'),
+  getMySightings: () => apiRequest('/me/sightings'),
   getUpdatesForCase: id => apiRequest(`/cases/${encodeURIComponent(id)}/history`),
   addCase: data => apiRequest('/cases', { method: 'POST', body: JSON.stringify(data) }),
+  updateCase: (id, data) => apiRequest(`/me/cases/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
   uploadCasePhoto: file => {
     const formData = new FormData();
     formData.append('photo', file);

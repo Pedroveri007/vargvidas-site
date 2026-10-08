@@ -11,7 +11,7 @@
   <div class="nav-wrap">
     <a href="index.html" class="brand">
       <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
-      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+      <div class="brand-text"><strong>VARG</strong><span>Conectando pessoas. Promovendo reencontros</span></div>
     </a>
     <nav class="main-nav" id="main-menu">
       <a href="index.html">Início</a>
@@ -29,6 +29,51 @@
   <div class="container" id="painel-wrap"></div>
 </section>
 
+<dialog id="case-editor" style="width:min(860px,calc(100% - 24px));max-height:90vh;padding:0;border:0;border-radius:8px;box-shadow:0 20px 70px #0004">
+  <form id="case-editor-form" class="form-card" style="margin:0;max-width:none;max-height:90vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+      <div><span class="eyebrow">Painel da família</span><h2 style="margin:4px 0 18px">Editar caso</h2></div>
+      <button class="btn btn-outline-azul" type="button" id="close-editor" aria-label="Fechar edição">Fechar</button>
+    </div>
+    <div class="form-section-title">Dados da pessoa</div>
+    <div class="form-grid">
+      <div class="field full"><label>Nome completo *</label><input required name="full_name"></div>
+      <div class="field"><label>Apelido</label><input name="nickname"></div>
+      <div class="field"><label>Data de nascimento</label><input type="date" name="birth_date"></div>
+      <div class="field"><label>Gênero *</label><select required name="gender"><option>Feminino</option><option>Masculino</option><option>Outro</option></select></div>
+      <div class="field"><label>Altura (cm)</label><input type="number" step="any" name="height_cm"></div>
+      <div class="field"><label>Peso (kg)</label><input type="number" step="any" name="weight_kg"></div>
+      <div class="field"><label>Cor dos olhos</label><input name="eye_color"></div>
+      <div class="field"><label>Cor do cabelo</label><input name="hair_color"></div>
+      <div class="field"><label>Cor da pele</label><input name="skin_color"></div>
+      <div class="field full"><label>Marcas, cicatrizes ou tatuagens</label><textarea name="marks" rows="2"></textarea></div>
+      <div class="field full"><label>Roupas usadas no dia</label><input name="clothing"></div>
+    </div>
+    <div class="form-section-title">Desaparecimento</div>
+    <div class="form-grid">
+      <div class="field"><label>Data do desaparecimento *</label><input required type="date" name="disappearance_date"></div>
+      <div class="field"><label>Cidade *</label><input required name="city" list="edit-city-options"><datalist id="edit-city-options"></datalist></div>
+      <div class="field"><label>Estado *</label><select required name="state"></select></div>
+      <div class="field"><label>Local visto pela última vez</label><input name="last_seen_location"></div>
+      <div class="field full"><label>Circunstâncias *</label><textarea required name="circumstances" rows="4"></textarea></div>
+      <div class="field full checkbox-row"><input type="checkbox" id="edit-urgent" name="is_urgent"><label for="edit-urgent" style="margin:0">Caso urgente</label></div>
+      <div class="field full"><label>Número do Boletim de Ocorrência</label><input name="police_report"></div>
+    </div>
+    <div class="form-section-title">Contato da família</div>
+    <div class="form-grid">
+      <div class="field"><label>Nome do responsável *</label><input required name="family_contact_name"></div>
+      <div class="field"><label>Telefone *</label><input required name="family_contact_phone"></div>
+      <div class="field full"><label>E-mail</label><input type="email" name="family_contact_email"></div>
+      <div class="field full checkbox-row"><input type="checkbox" id="edit-show-contact-phone" name="show_contact_phone"><label for="edit-show-contact-phone" style="margin:0">Exibir meu telefone de contato no card público deste caso</label></div>
+      <div class="field full"><label>Foto da pessoa</label><input id="edit-case-photo" type="file" accept="image/jpeg,image/png,image/webp"><div id="edit-photo-preview" class="helper"></div></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+      <button class="btn btn-outline-azul" type="button" id="cancel-editor">Cancelar</button>
+      <button class="btn btn-primary" type="submit">Salvar alterações</button>
+    </div>
+  </form>
+</dialog>
+
 <footer class="site">
   <div class="container footer-bottom"><span>© 2026 VARG</span></div>
 </footer>
@@ -43,7 +88,7 @@
     DB.getMyCases().then(cases => {
       const active = cases.filter(c => c.status === "active").length;
       const found = cases.filter(c => c.status === "found").length;
-      const rows = cases.length ? cases.map(c => `<tr><td>${c.full_name}</td><td>${c.protocol}</td><td><span class="tag ${c.status === 'found' ? 'encontrado' : 'ativo'}">${statusLabel(c.status)}</span></td><td>${fmtDate(c.created_at)}</td><td>${c.status === 'active' ? `<button class="btn btn-outline-azul" onclick="requestFound('${c.id}')">Informar encontrado</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="5" class="empty-state">Nenhum caso cadastrado.</td></tr>';
+      const rows = cases.length ? cases.map(c => `<tr><td>${escapeHtml(c.full_name)}</td><td>${escapeHtml(c.protocol)}</td><td><span class="tag ${c.status === 'found' ? 'encontrado' : 'ativo'}">${statusLabel(c.status)}</span></td><td>${fmtDate(c.created_at)}</td><td><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-outline-azul" onclick="openCaseEditor('${c.id}')">Editar</button>${c.status === 'active' ? `<button class="btn btn-outline-azul" onclick="requestFound('${c.id}')">Informar encontrado</button>` : ''}</div></td></tr>`).join('') : '<tr><td colspan="5" class="empty-state">Nenhum caso cadastrado.</td></tr>';
       const displayName = session.nome?.trim() || 'família';
       wrap.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
@@ -60,7 +105,7 @@
         <div class="stat-card"><div class="num">0</div><div class="lbl">Visualizações totais</div></div>
       </div>
       <div class="info-box" id="notifications-box" style="margin-bottom:24px"><h4>Notificações</h4><p>Carregando...</p></div>
-      <div class="info-box" id="security-box" style="margin-bottom:24px"><h4>Segurança da conta</h4><p>Carregando configurações...</p></div>
+      <div class="info-box" id="sightings-box" style="margin-bottom:24px"><h4>Avistamentos recebidos</h4><p>Carregando...</p></div>
       <table>
         <thead><tr><th>Nome</th><th>Protocolo</th><th>Status</th><th>Cadastrado em</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
@@ -84,118 +129,111 @@
         }
       }
 
-      async function loadSecuritySettings() {
-        const box = document.getElementById('security-box');
+      async function loadSightings() {
+        const box = document.getElementById('sightings-box');
         try {
-          const settings = await DB.getSecuritySettings();
-          if (settings.emailTwoFactorEnabled) {
-            box.innerHTML = `<h4>Verificação por e-mail ativa</h4>
-              <p>Enviaremos um código de acesso para ${escapeHtml(settings.maskedEmail)} sempre que você entrar.</p>
-              <form id="email-2fa-disable-form">
-                <div class="field"><label for="email-2fa-disable-password">Senha atual</label><input required type="password" id="email-2fa-disable-password" autocomplete="current-password"></div>
-                <button class="btn btn-outline-azul" type="submit">Desativar verificação por e-mail</button>
-              </form>`;
-            box.querySelector('#email-2fa-disable-form').addEventListener('submit', async event => {
-              event.preventDefault();
-              const button = event.currentTarget.querySelector('button[type="submit"]');
-              button.disabled = true;
-              try {
-                await DB.disableEmailTwoFactor(document.getElementById('email-2fa-disable-password').value);
-                toast('Verificação por e-mail desativada.');
-                loadSecuritySettings();
-              } catch (error) {
-                toast(error.message);
-              } finally {
-                button.disabled = false;
-              }
-            });
-            return;
-          }
-
-          box.innerHTML = `<h4>Verificação em duas etapas</h4>
-            <p>Ao entrar, você receberá um código no endereço ${escapeHtml(settings.maskedEmail)}.</p>
-            <form id="email-2fa-enable-form">
-              <div class="field"><label for="email-2fa-enable-password">Confirme sua senha</label><input required type="password" id="email-2fa-enable-password" autocomplete="current-password"></div>
-              <button class="btn btn-primary" type="submit">Ativar código por e-mail</button>
-            </form>`;
-          box.querySelector('#email-2fa-enable-form').addEventListener('submit', async event => {
-            event.preventDefault();
-            const button = event.currentTarget.querySelector('button[type="submit"]');
-            button.disabled = true;
-            try {
-              const setup = await DB.enableEmailTwoFactor(document.getElementById('email-2fa-enable-password').value);
-              box.innerHTML = `<h4>Confirme seu endereço</h4>
-                <p>Enviamos um código para ${escapeHtml(setup.maskedEmail)}. Digite-o para ativar a verificação por e-mail.</p>
-                <form id="email-2fa-confirm-form">
-                  <div class="field"><label for="email-2fa-confirm-code">Código de 6 dígitos</label><input required id="email-2fa-confirm-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></div>
-                  <button class="btn btn-primary" type="submit">Confirmar e ativar</button>
-                  <button class="btn btn-outline-azul" id="email-2fa-resend" type="button" disabled>Reenviar código</button>
-                </form>`;
-              const confirmationForm = box.querySelector('#email-2fa-confirm-form');
-              const resendButton = box.querySelector('#email-2fa-resend');
-              let resendTimer;
-              function startResendCountdown(seconds) {
-                let remaining = seconds;
-                clearInterval(resendTimer);
-                resendButton.disabled = true;
-                resendButton.textContent = `Reenviar em ${remaining}s`;
-                resendTimer = setInterval(() => {
-                  remaining -= 1;
-                  if (remaining <= 0) {
-                    clearInterval(resendTimer);
-                    resendButton.disabled = false;
-                    resendButton.textContent = 'Reenviar código';
-                  } else {
-                    resendButton.textContent = `Reenviar em ${remaining}s`;
-                  }
-                }, 1000);
-              }
-              startResendCountdown(setup.resendAfterSeconds);
-              confirmationForm.addEventListener('submit', async submitEvent => {
-                submitEvent.preventDefault();
-                const confirmButton = submitEvent.currentTarget.querySelector('button[type="submit"]');
-                confirmButton.disabled = true;
-                try {
-                  await DB.confirmEmailTwoFactor(setup.setupToken, document.getElementById('email-2fa-confirm-code').value);
-                  clearInterval(resendTimer);
-                  toast('Verificação por e-mail ativada.');
-                  loadSecuritySettings();
-                } catch (error) {
-                  toast(error.message);
-                } finally {
-                  confirmButton.disabled = false;
-                }
-              });
-              resendButton.addEventListener('click', async () => {
-                resendButton.disabled = true;
-                try {
-                  await DB.resendEmailCode(setup.setupToken);
-                  startResendCountdown(60);
-                  toast('Código reenviado.');
-                } catch (error) {
-                  toast(error.message);
-                  startResendCountdown(60);
-                }
-              });
-            } catch (error) {
-              toast(error.message);
-              button.disabled = false;
-            }
-          });
+          const sightings = await DB.getMySightings();
+          box.innerHTML = `<h4>Avistamentos recebidos</h4>${sightings.length ? `<div>${sightings.map(sighting => {
+            const reporter = sighting.is_anonymous ? 'Informante anônimo' : sighting.contact_name || 'Informante não identificado';
+            const contact = sighting.is_anonymous ? '' : [sighting.contact_phone, sighting.contact_email].filter(Boolean).map(escapeHtml).join(' · ');
+            const place = [sighting.location, `${sighting.city}/${sighting.state}`].filter(Boolean).map(escapeHtml).join(' · ');
+            return `<article style="padding:14px 0;border-bottom:1px solid var(--cinza-claro)"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong>${escapeHtml(sighting.case_name)}</strong><span>${escapeHtml(sighting.sighting_date)}${sighting.sighting_time ? ` às ${escapeHtml(sighting.sighting_time)}` : ''}</span></div><p style="margin:8px 0">${escapeHtml(sighting.description)}</p><div class="helper">${place}</div><div class="helper">${escapeHtml(reporter)}${contact ? ` · ${contact}` : ''}</div></article>`;
+          }).join('')}</div>` : '<p>Nenhum avistamento recebido.</p>'}`;
         } catch (error) {
-          box.innerHTML = `<h4>Segurança da conta</h4><p>${escapeHtml(error.message)}</p>`;
+          box.innerHTML = `<h4>Avistamentos recebidos</h4><p>Não foi possível carregar os avistamentos. ${escapeHtml(error.message)}</p>`;
         }
       }
 
       loadNotifications();
-      loadSecuritySettings();
+      loadSightings();
       const notificationsTimer = setInterval(() => {
-        if (!document.hidden) loadNotifications();
+        if (!document.hidden) { loadNotifications(); loadSightings(); }
       }, 15000);
       window.addEventListener('pagehide', () => {
         clearInterval(notificationsTimer);
         clearTimeout(notificationExpiryTimer);
       }, { once: true });
+
+      const editor = document.getElementById('case-editor');
+      const editorForm = document.getElementById('case-editor-form');
+      const stateSelect = editorForm.elements.state;
+      const cityInput = editorForm.elements.city;
+      const cityOptions = document.getElementById('edit-city-options');
+      const photoInput = document.getElementById('edit-case-photo');
+      const photoPreview = document.getElementById('edit-photo-preview');
+      let editingCase;
+
+      window.openCaseEditor = async id => {
+        editingCase = cases.find(item => item.id === id);
+        if (!editingCase) return;
+        editorForm.reset();
+        const fields = ['full_name', 'nickname', 'birth_date', 'gender', 'height_cm', 'weight_kg', 'eye_color', 'hair_color', 'skin_color', 'marks', 'clothing', 'disappearance_date', 'city', 'last_seen_location', 'circumstances', 'police_report', 'family_contact_name', 'family_contact_phone', 'family_contact_email'];
+        for (const field of fields) {
+          let value = editingCase[field] ?? '';
+          if (field === 'disappearance_date') value = String(value).slice(0, 10);
+          editorForm.elements[field].value = value;
+        }
+        editorForm.elements.is_urgent.checked = editingCase.is_urgent;
+        editorForm.elements.show_contact_phone.checked = editingCase.show_contact_phone;
+        try {
+          const states = await DB.getStates();
+          stateSelect.innerHTML = states.map(state => `<option value="${escapeHtml(state.nome)}">${escapeHtml(state.nome)}</option>`).join('');
+          stateSelect.value = editingCase.state;
+          const cities = await DB.getCities(editingCase.state);
+          cityOptions.innerHTML = cities.map(city => `<option value="${escapeHtml(city.nome)}"></option>`).join('');
+          cityInput.value = editingCase.city;
+          photoPreview.innerHTML = editingCase.photo_url ? `<img src="${escapeHtml(mediaUrl(editingCase.photo_url))}" alt="Foto atual" style="width:72px;height:72px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:8px">Foto atual` : 'Nenhuma foto cadastrada.';
+          photoInput.value = '';
+          editor.showModal();
+        } catch (error) {
+          toast(error.message);
+        }
+      };
+
+      stateSelect.addEventListener('change', async () => {
+        cityInput.value = '';
+        try {
+          const cities = await DB.getCities(stateSelect.value);
+          cityOptions.innerHTML = cities.map(city => `<option value="${escapeHtml(city.nome)}"></option>`).join('');
+        } catch (error) { toast(error.message); }
+      });
+
+      photoInput.addEventListener('change', () => {
+        const file = photoInput.files[0];
+        if (!file) return;
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+          photoInput.value = '';
+          toast('Escolha uma foto JPG, PNG ou WEBP de até 5 MB.');
+          return;
+        }
+        photoPreview.textContent = `Nova foto: ${file.name}`;
+      });
+
+      document.getElementById('close-editor').addEventListener('click', () => editor.close());
+      document.getElementById('cancel-editor').addEventListener('click', () => editor.close());
+      editorForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        const formData = new FormData(editorForm);
+        const data = Object.fromEntries(formData.entries());
+        data.is_urgent = editorForm.elements.is_urgent.checked;
+        data.show_contact_phone = editorForm.elements.show_contact_phone.checked;
+        data.height_cm = Number(data.height_cm) || null;
+        data.weight_kg = Number(data.weight_kg) || null;
+        data.foto_url = editingCase.photo_url || '';
+        const submitButton = editorForm.querySelector('[type="submit"]');
+        submitButton.disabled = true;
+        try {
+          if (photoInput.files[0]) data.foto_url = (await DB.uploadCasePhoto(photoInput.files[0])).url;
+          await DB.updateCase(editingCase.id, data);
+          editor.close();
+          toast('Dados atualizados.');
+          location.reload();
+        } catch (error) {
+          toast(error.message);
+        } finally {
+          submitButton.disabled = false;
+        }
+      });
     }).catch(error => { wrap.innerHTML = `<div class="empty-state">${error.message}</div>`; });
   }
   async function requestFound(id) {

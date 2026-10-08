@@ -11,7 +11,7 @@
   <div class="nav-wrap">
     <a href="index.html" class="brand">
       <img class="brand-logo" src="../logo/logo.svg" alt="Logo VARG">
-      <div class="brand-text"><strong>VARG</strong><span>Vidas em Alerta para Reencontro e Gestão</span></div>
+      <div class="brand-text"><strong>VARG</strong><span>Conectando pessoas. Promovendo reencontros</span></div>
     </a>
     <nav class="main-nav" id="main-menu">
       <a href="index.html">Início</a>
@@ -85,6 +85,7 @@
         <div class="field"><label>Nome do responsável *</label><input required name="family_contact_name"></div>
         <div class="field"><label>Telefone *</label><input required name="family_contact_phone"></div>
         <div class="field full"><label>E-mail</label><input type="email" name="family_contact_email"></div>
+        <div class="field full checkbox-row"><input type="checkbox" id="show-contact-phone" name="show_contact_phone"><label for="show-contact-phone" style="margin:0">Exibir meu telefone de contato no card público deste caso</label></div>
         <div class="field full"><label>Número do Boletim de Ocorrência</label><input name="police_report" placeholder="Se já registrado"></div>
         <div class="field full"><label>Foto da pessoa</label><input id="case-photo" type="file" accept="image/jpeg,image/png,image/webp"><div id="photo-preview" class="helper"></div></div>
       </div>
@@ -97,7 +98,7 @@
 </section>
 
 <footer class="site">
-  <div class="container footer-bottom"><span>© 2026 VARG — Vidas em Alerta para Reencontro e Gestão.</span></div>
+  <div class="container footer-bottom"><span>© 2026 VARG — Conectando pessoas. Promovendo reencontros.</span></div>
 </footer>
 
 <script src="../js/app.js"></script>
@@ -149,6 +150,7 @@
     const fd = new FormData(this);
     const data = Object.fromEntries(fd.entries());
     data.is_urgent = !!fd.get("is_urgent");
+    data.show_contact_phone = !!fd.get("show_contact_phone");
     data.height_cm = parseInt(data.height_cm) || null;
     data.weight_kg = parseInt(data.weight_kg) || null;
     const submit = photoFile ? DB.uploadCasePhoto(photoFile).then(result => { data.foto_url = result.url; }) : Promise.resolve();

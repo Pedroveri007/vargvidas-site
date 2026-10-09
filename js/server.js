@@ -14,6 +14,8 @@ const host = process.env.HOST || '0.0.0.0';
 const port = Number(process.env.PORT || 3000);
 const databaseName = process.env.DB_NAME || 'VARGS';
 const jwtSecret = process.env.JWT_SECRET || 'development-secret-change-me';
+const adminEmail = process.env.ADMIN_EMAIL || 'admin@varg.local';
+const adminPassword = process.env.ADMIN_PASSWORD || 'Admin123!';
 const emailLoginChallenges = new Map();
 const mailer = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD
   ? nodemailer.createTransport({
@@ -238,11 +240,31 @@ async function notifyCaseOwner(connection, caseId, message) {
   await connection.execute('INSERT INTO notificacoes (usuario_id,alerta_id,mensagem) VALUES (?,?,?)', [caseRow.usuario_id, alert.insertId, message]);
 }
 
+async function ensureDefaultAdmin() {
+  try {
+    const [rows] = await pool.execute('SELECT idUsuario FROM usuarios WHERE LOWER(email)=? AND role=? LIMIT 1', [String(adminEmail).trim().toLowerCase(), 'ADMIN']);
+    if (rows[0]) return rows[0];
+
+    await pool.execute(
+      `INSERT INTO usuarios (nome,email,senha,telefone,role,ativo,email_2fa_enabled,auth_version)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      ['Administrador VARG', adminEmail, hashPassword(adminPassword), null, 'ADMIN', 1, 0, 1]
+    );
+
+    console.log(`Conta administrativa padrão criada: ${adminEmail} / ${adminPassword}`);
+    return { idUsuario: null };
+  } catch (error) {
+    console.error('Falha ao garantir conta administrativa padrão:', error);
+    return null;
+  }
+}
+
 async function start() {
   if (!mailer) console.warn('Gmail SMTP não configurado: contas com verificação por e-mail não poderão concluir o login.');
   try {
     await pool.query('SELECT 1');
     console.log(`Banco de dados conectado: ${databaseName} em ${process.env.DB_HOST || '127.0.0.1'}:${process.env.DB_PORT || 3306}`);
+    await ensureDefaultAdmin();
   } catch (error) {
     console.error(`Banco de dados indisponível: ${error.code || 'erro de conexão'} (${process.env.DB_HOST || '127.0.0.1'}:${process.env.DB_PORT || 3306})`);
   }

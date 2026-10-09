@@ -29,14 +29,22 @@
 <section>
   <div class="container">
     <div class="stats-grid" id="stats-grid" style="margin-bottom:36px"></div>
-    <div class="two-col">
-      <div class="card-simple">
-        <h3>Casos por estado</h3>
-        <div id="por-estado" style="display:flex;flex-direction:column;gap:10px;margin-top:16px"></div>
-      </div>
-      <div class="card-simple">
-        <h3>Casos por status</h3>
-        <div id="por-status" style="display:flex;flex-direction:column;gap:10px;margin-top:16px"></div>
+    <div class="chart-layout single-chart-layout">
+      <div class="chart-card chart-card--accent">
+        <div class="chart-header">
+          <div>
+            <span class="eyebrow">Resumo</span>
+            <h3>Casos por estado</h3>
+          </div>
+          <span class="chip" id="chart-total">0 casos</span>
+        </div>
+        <div class="mixed-chart-shell">
+          <svg id="mixed-chart" class="mixed-chart" viewBox="0 0 340 210" role="img" aria-label="Gráfico de colunas e linha por estado"></svg>
+        </div>
+        <div class="mini-legend">
+          <span><i class="dot dot--primary"></i> Casos</span>
+          <span><i class="dot dot--line"></i> Tendência</span>
+        </div>
       </div>
     </div>
   </div>
@@ -46,22 +54,81 @@
 
 <script src="../js/app.js"></script>
 <script>
-  DB.stats().then(st => { document.getElementById("stats-grid").innerHTML = `
-    <div class="stat-card"><div class="num">${st.ativos}</div><div class="lbl">Buscas ativas</div></div>
-    <div class="stat-card"><div class="num">${st.encontrados}</div><div class="lbl">Pessoas reencontradas</div></div>
-    <div class="stat-card"><div class="num">${st.urgentes}</div><div class="lbl">Casos urgentes</div></div>
-    <div class="stat-card"><div class="num">${st.total ? Math.round(st.encontrados / st.total * 100) : 0}%</div><div class="lbl">Taxa de reencontro</div></div>
-  `;
-  function barRow(label, value, max) {
-    const pct = max ? Math.round(value/max*100) : 0;
-    return `<div>
-      <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>${label}</span><strong>${value}</strong></div>
-      <div style="background:var(--cinza-claro);border-radius:6px;height:8px;overflow:hidden"><div style="background:var(--azul);width:${pct}%;height:100%"></div></div>
-    </div>`;
-  }
-  const states = Object.entries(st.porEstado || {}), statuses = Object.entries(st.porStatus || {});
-  document.getElementById("por-estado").innerHTML = states.length ? states.map(x => barRow(x[0], x[1], Math.max(...states.map(y => y[1])))).join("") : '<div class="empty-state" style="padding:20px 0">Nenhum dado</div>';
-  document.getElementById("por-status").innerHTML = statuses.length ? statuses.map(x => barRow(x[0], x[1], Math.max(...statuses.map(y => y[1])))).join("") : '<div class="empty-state" style="padding:20px 0">Nenhum dado</div>';
+  DB.stats().then(st => {
+    document.getElementById("stats-grid").innerHTML = `
+      <div class="stat-card"><div class="num">${st.ativos}</div><div class="lbl">Buscas ativas</div></div>
+      <div class="stat-card"><div class="num">${st.encontrados}</div><div class="lbl">Pessoas reencontradas</div></div>
+      <div class="stat-card"><div class="num">${st.urgentes}</div><div class="lbl">Casos urgentes</div></div>
+      <div class="stat-card"><div class="num">${st.total ? Math.round(st.encontrados / st.total * 100) : 0}%</div><div class="lbl">Taxa de reencontro</div></div>
+    `;
+
+    const states = Object.entries(st.porEstado || {});
+    const statuses = Object.entries(st.porStatus || {});
+
+    const totalText = document.getElementById('chart-total');
+    totalText.textContent = `${st.total || 0} casos`;
+
+    function renderMixedChart(data) {
+      const svg = document.getElementById('mixed-chart');
+      if (!svg) return;
+      if (!data.length) {
+        svg.innerHTML = '<text x="170" y="110" text-anchor="middle" fill="var(--cinza-texto)" font-size="12">Nenhum dado</text>';
+        return;
+      }
+
+      const width = 560;
+      const height = 200;
+      const pad = { top: 18, right: 18, bottom: 34, left: 26 };
+      const values = data.map(([, value]) => Number(value) || 0);
+      const max = Math.max(...values, 1);
+      const chartWidth = width - pad.left - pad.right;
+      const chartHeight = height - pad.top - pad.bottom;
+      const step = chartWidth / data.length;
+      const barWidth = Math.min(42, step * 0.62);
+
+      const linePoints = data.map(([label, value], index) => {
+        const x = pad.left + step * index + step / 2;
+        const y = height - pad.bottom - ((Number(value) || 0) / max) * chartHeight;
+        return `${x},${y}`;
+      }).join(' ');
+
+      const bars = data.map(([label, value], index) => {
+        const x = pad.left + step * index + (step - barWidth) / 2;
+        const barHeight = ((Number(value) || 0) / max) * chartHeight;
+        const y = height - pad.bottom - barHeight;
+        return `
+          <rect class="bar" x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="7" fill="rgba(30,58,138,0.9)"></rect>
+        `;
+      }).join('');
+
+      const points = data.map(([label, value], index) => {
+        const x = pad.left + step * index + step / 2;
+        const y = height - pad.bottom - ((Number(value) || 0) / max) * chartHeight;
+        return `
+          <circle class="point" cx="${x}" cy="${y}" r="4.5" fill="#ffffff" stroke="#ff7a59" stroke-width="2"></circle>
+        `;
+      }).join('');
+
+      const axisLabels = data.map(([label], index) => {
+        const x = pad.left + step * index + step / 2;
+        const labelText = label.length > 10 ? `${label.slice(0, 10)}…` : label;
+        return `<text x="${x}" y="${height - 12}" text-anchor="middle" fill="rgba(15,23,42,0.65)" font-size="10" font-weight="600">${labelText}</text>`;
+      }).join('');
+
+      svg.innerHTML = `
+        <g>
+          <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" stroke="rgba(15,23,42,0.12)" stroke-width="1" />
+          <polyline points="${linePoints}" fill="none" stroke="#ff7a59" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          ${bars}
+          ${points}
+          ${axisLabels}
+        </g>
+      `;
+    }
+
+    renderMixedChart(states);
+
+    document.getElementById('chart-total').textContent = `${st.total || 0} casos`;
   }).catch(error => toast(error.message));
 </script>
 </body>

@@ -261,7 +261,7 @@ async function ensureDefaultAdmin() {
       ['Administrador VARG', adminEmail, hashPassword(adminPassword), null, 'ADMIN', 1, 0, 1]
     );
 
-    console.log(`Conta administrativa padrão criada: ${adminEmail} / ${adminPassword}`);
+    console.log('Conta administrativa padrão criada.');
     return { idUsuario: null };
   } catch (error) {
     console.error('Falha ao garantir conta administrativa padrão:', error);

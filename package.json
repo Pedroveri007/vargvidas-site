@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "start": "node js/server.js",
-    "dev": "node --watch js/server.js"
+    "dev": "node --watch js/server.js",
+    "build": "npm run build:blob-client",
+    "build:blob-client": "esbuild js/blob-client.js --bundle --format=esm --outfile=js/blob-client.bundle.js"
   },
   "dependencies": {
+    "@vercel/blob": "^2.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -14,5 +17,11 @@
     "multer": "^2.3.0",
     "mysql2": "^3.12.0",
     "nodemailer": "^10.0.15"
+  },
+  "overrides": {
+    "zod": "^4.6.6"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

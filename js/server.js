@@ -8,11 +8,19 @@ const jwt = require('jsonwebtoken');
 const mysql = require('mysql2/promise');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
+const { handleUpload } = require('@vercel/blob/client');
 
 const app = express();
 const host = process.env.HOST || '0.0.0.0';
 const port = Number(process.env.PORT || 3000);
 const databaseName = process.env.DB_NAME || 'VARGS';
+const requiredDeploymentVariables = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'JWT_SECRET'];
+const missingDeploymentVariables = process.env.VERCEL
+  ? requiredDeploymentVariables.filter(name => !process.env[name])
+  : [];
+if (missingDeploymentVariables.length) {
+  throw new Error(`Variáveis obrigatórias ausentes na Vercel: ${missingDeploymentVariables.join(', ')}`);
+}
 const jwtSecret = process.env.JWT_SECRET || 'development-secret-change-me';
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@varg.local';
 const adminPassword = process.env.ADMIN_PASSWORD || 'Admin123!';
@@ -36,8 +44,10 @@ const stateNamesByCode = {
   RR: 'Roraima', SC: 'Santa Catarina', SP: 'São Paulo', SE: 'Sergipe',
   TO: 'Tocantins'
 };
-const uploadDirectory = path.join(__dirname, 'uploads');
-fs.mkdirSync(uploadDirectory, { recursive: true });
+const uploadDirectory = process.env.VERCEL
+  ? path.join('/tmp', 'varg-uploads')
+  : path.join(__dirname, 'uploads');
+if (!process.env.VERCEL) fs.mkdirSync(uploadDirectory, { recursive: true });
 const pool = mysql.createPool({
   host: process.env.DB_HOST || '127.0.0.1',
   port: Number(process.env.DB_PORT || 3306),
@@ -45,17 +55,17 @@ const pool = mysql.createPool({
   password: process.env.DB_PASSWORD || '',
   database: databaseName,
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || (process.env.VERCEL ? 3 : 10)),
   charset: 'utf8mb4'
 });
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
-const projectRoot = path.resolve(__dirname, '..');
+const projectRoot = process.env.VERCEL ? process.cwd() : path.resolve(__dirname, '..');
 app.use(express.static(projectRoot));
 app.use(express.static(path.join(projectRoot, 'Html'), { index: false }));
 app.get('/', (req, res) => res.redirect('/Html/index.html'));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+if (!process.env.VERCEL) app.use('/uploads', express.static(uploadDirectory));
 
 const imageUpload = multer({
   storage: multer.diskStorage({
@@ -274,6 +284,10 @@ async function start() {
 app.get('/api/health', async (req, res) => {
   try { await pool.query('SELECT 1'); res.json({ ok: true, database: databaseName }); }
   catch (_) { res.status(503).json({ ok: false, error: 'Banco de dados indisponível.' }); }
+});
+
+app.get('/api/config', (req, res) => {
+  res.json({ blobClientUploads: process.env.VERCEL === '1' });
 });
 
 app.post('/api/auth/register', async (req, res) => {
@@ -517,10 +531,37 @@ app.get('/api/cities', async (req, res) => {
 });
 
 app.post('/api/uploads/case-photo', auth(), (req, res) => {
+  if (process.env.VERCEL) return res.status(413).json({ error: 'Use o envio direto para o armazenamento de fotos.' });
   imageUpload.single('photo')(req, res, error => {
     if (error || !req.file) return res.status(400).json({ error: 'A foto deve ser JPG, PNG ou WEBP e ter até 5 MB.' });
     res.status(201).json({ url: `/uploads/${req.file.filename}` });
   });
+});
+
+app.post('/api/uploads/case-photo-token', auth(), async (req, res) => {
+  if (!process.env.VERCEL || !process.env.BLOB_READ_WRITE_TOKEN) {
+    return res.status(503).json({ error: 'O armazenamento direto de fotos não está configurado.' });
+  }
+  try {
+    const response = await handleUpload({
+      body: req.body,
+      request: req,
+      onBeforeGenerateToken: async pathname => {
+        if (!/^case-photos\/[A-Za-z0-9._-]+\.(?:jpe?g|png|webp)$/i.test(pathname)) {
+          throw new Error('Nome de arquivo inválido.');
+        }
+        return {
+          allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp'],
+          maximumSizeInBytes: 5 * 1024 * 1024,
+          addRandomSuffix: true
+        };
+      }
+    });
+    res.json(response);
+  } catch (error) {
+    console.error('Falha ao preparar envio direto da foto:', error);
+    res.status(400).json({ error: 'Não foi possível preparar o envio da foto.' });
+  }
 });
 
 app.get('/api/cases', async (req, res) => {
@@ -932,4 +973,6 @@ async function reviewFoundRequest(req, res, approved) {
 app.put('/api/admin/found-requests/:id/approve', auth(), adminOnly, (req, res) => reviewFoundRequest(req, res, true));
 app.put('/api/admin/found-requests/:id/reject', auth(), adminOnly, (req, res) => reviewFoundRequest(req, res, false));
 
-start();
+if (require.main === module) start();
+
+module.exports = app;

@@ -80,7 +80,22 @@ const DB = {
   getUpdatesForCase: id => apiRequest(`/cases/${encodeURIComponent(id)}/history`),
   addCase: data => apiRequest('/cases', { method: 'POST', body: JSON.stringify(data) }),
   updateCase: (id, data) => apiRequest(`/me/cases/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
-  uploadCasePhoto: file => {
+  uploadCasePhoto: async file => {
+    const config = await apiRequest('/config');
+    if (config.blobClientUploads) {
+      const { upload } = await import('/js/blob-client.bundle.js');
+      const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.type];
+      if (!extension) throw new Error('Escolha uma foto JPG, PNG ou WEBP.');
+      const filename = `case-photos/${crypto.randomUUID()}.${extension}`;
+      const token = localStorage.getItem('varg_token');
+      const blob = await upload(filename, file, {
+        access: 'public',
+        handleUploadUrl: `${API_URL}/uploads/case-photo-token`,
+        headers: { Authorization: `Bearer ${token}` },
+        contentType: file.type
+      });
+      return { url: blob.url };
+    }
     const formData = new FormData();
     formData.append('photo', file);
     return apiRequest('/uploads/case-photo', { method: 'POST', body: formData });

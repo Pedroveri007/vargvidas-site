@@ -1,3 +1,4 @@
 node_modules/
 .env
 uploads/
+js/blob-client.bundle.js

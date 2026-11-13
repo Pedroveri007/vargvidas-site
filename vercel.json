@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "server.js": {
+      "includeFiles": [
+        "Html/**",
+        "css/**",
+        "js/**",
+        "logo/**"
+      ]
+    }
+  }
+}
